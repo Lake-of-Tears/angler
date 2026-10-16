@@ -1,0 +1,177 @@
+# angler 🎣
+
+**The official CLI for Lake of Tears — cast queries, launch clusters, inspect catalogs, and reel in data**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/Lake-of-Tears/angler/actions/workflows/ci.yaml/badge.svg)](https://github.com/Lake-of-Tears/angler/actions/workflows/ci.yaml)
+[![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![Release](https://img.shields.io/github/v/release/Lake-of-Tears/angler?color=00B4D8)](https://github.com/Lake-of-Tears/angler/releases)
+
+---
+
+## What is Angler?
+
+`angler` is the official command-line interface for the **Lake of Tears** data lakehouse. Designed for data engineers, analysts, and platform operators, `angler` allows you to manage local and cloud cluster deployments, execute high-speed SQL queries across S3 and DuckDB, browse Parquet data catalogs, and cast natural language AI queries right from your terminal.
+
+---
+
+## Installation
+
+### macOS (Homebrew)
+
+Install directly from the official Lake of Tears tap:
+
+```bash
+brew tap Lake-of-Tears/tap
+brew install angler
+```
+
+Or in a single command:
+
+```bash
+brew install Lake-of-Tears/tap/angler
+```
+
+### Windows (Chocolatey)
+
+Install using Chocolatey package manager:
+
+```powershell
+choco install angler
+```
+
+### Pre-compiled Standalone Binaries
+
+Download pre-compiled binaries for macOS (Apple Silicon / Intel), Windows (x64 / ARM64), and Linux (x64 / ARM64) directly from the [GitHub Releases](https://github.com/Lake-of-Tears/angler/releases) page:
+
+```bash
+# Example: macOS Apple Silicon
+curl -sSL https://github.com/Lake-of-Tears/angler/releases/latest/download/angler_darwin_arm64.tar.gz | tar -xz
+sudo mv angler /usr/local/bin/
+```
+
+### Build from Source
+
+```bash
+go install github.com/Lake-of-Tears/angler@latest
+```
+
+---
+
+## Quickstart
+
+### 1. Authenticate or Configure Endpoint
+
+Connect to your Lake of Tears instance:
+
+```bash
+# Interactive login
+angler auth login
+
+# Or switch context profiles
+angler context set production --endpoint https://lake.example.com
+angler context use production
+```
+
+### 2. Verify Connectivity
+
+```bash
+angler status
+# or alias:
+angler ping
+```
+
+### 3. Cast a Query
+
+Run DuckDB queries directly over remote Parquet datasets:
+
+```bash
+angler cast "SELECT * FROM lake.telemetry LIMIT 10"
+
+# Output in JSON or CSV
+angler query -e "SELECT department, count(*) FROM employees GROUP BY 1" --format csv
+```
+
+### 4. Transmit a Sonar Pulse (AI RAG)
+
+Ask questions grounded in your data using Gemini vector search:
+
+```bash
+angler sonar "Which region had the largest revenue drop in Q3?"
+```
+
+### 5. Inspect Catalog
+
+```bash
+angler net
+# or
+angler catalog ls
+```
+
+---
+
+## Command Reference
+
+| Command | Lake Alias | Description |
+| :--- | :--- | :--- |
+| `angler status` | `angler ping` | Check cluster connectivity and service health |
+| `angler query` | `angler cast` | Execute SQL queries (table, JSON, or CSV output) |
+| `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
+| `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
+| `angler up` | `angler launch` | Spin up local Lake of Tears Docker stack |
+| `angler down` | `angler dock` | Stop and safely dock running containers |
+| `angler auth` | — | Log in, log out, and check authentication status |
+| `angler context` | — | Manage multiple environment profiles (`~/.angler/config.yaml`) |
+| `angler version` | — | Display build version, commit, and date |
+| `angler completion` | — | Generate shell autocompletions (bash, zsh, fish, powershell) |
+
+---
+
+## Configuration & Environments
+
+`angler` stores profile configurations in `~/.angler/config.yaml`:
+
+```yaml
+current_context: local
+contexts:
+  local:
+    endpoint: http://localhost:8000
+    timeout: 30
+  production:
+    endpoint: https://lake.myorg.internal
+    token: eyJhbGciOi...
+    timeout: 60
+```
+
+### Environment Variables
+
+For headless CI/CD environments, `angler` respects environment variables:
+
+| Variable | Description |
+| :--- | :--- |
+| `ANGLER_ENDPOINT` | Override the active API endpoint |
+| `ANGLER_TOKEN` | API bearer token or service account key |
+| `ANGLER_CONTEXT` | Select active profile context name |
+
+---
+
+## Shell Autocompletion
+
+Enable interactive tab completion in your shell:
+
+```bash
+# Zsh
+angler completion zsh > "${fpath[1]}/_angler"
+
+# Bash
+angler completion bash > /etc/bash_completion.d/angler
+
+# Fish
+angler completion fish > ~/.config/fish/completions/angler.fish
+```
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

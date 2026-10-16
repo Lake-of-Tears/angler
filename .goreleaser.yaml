@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: angler
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: angler
+    main: ./main.go
+    binary: angler
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/Lake-of-Tears/angler/cmd.Version={{.Version}}
+      - -X github.com/Lake-of-Tears/angler/cmd.Commit={{.Commit}}
+      - -X github.com/Lake-of-Tears/angler/cmd.Date={{.Date}}
+      - -X github.com/Lake-of-Tears/angler/cmd.BuiltBy=goreleaser
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+brews:
+  - name: angler
+    repository:
+      owner: Lake-of-Tears
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://thelakeoftears.com"
+    description: "The official CLI for Lake of Tears — cast queries, launch clusters, inspect catalogs, and reel in data"
+    license: "MIT"
+    test: |
+      system "#{bin}/angler", "version"
+
+chocolateys:
+  - name: angler
+    package_source_url: "https://github.com/Lake-of-Tears/angler"
+    owners: "Lake-of-Tears"
+    title: "Lake of Tears Angler CLI"
+    authors: "Lake of Tears Team"
+    project_url: "https://thelakeoftears.com"
+    license_url: "https://github.com/Lake-of-Tears/angler/blob/main/LICENSE"
+    require_license_acceptance: false
+    description: "The official CLI for Lake of Tears — cast queries, launch clusters, inspect catalogs, and reel in data."
+    summary: "Lake of Tears CLI: query DuckDB over S3, manage clusters, and execute AI queries."
+    tags: "lake-of-tears angler datalakehouse duckdb s3 cli"
+    api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
+    source_repo: "https://push.chocolatey.org/"
+    skip_publish: false
