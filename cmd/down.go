@@ -14,6 +14,12 @@ var (
 	removeVolumes   bool
 )
 
+type DownResult struct {
+	Status         string `json:"status" yaml:"status"`
+	ComposeFile    string `json:"compose_file,omitempty" yaml:"compose_file,omitempty"`
+	VolumesRemoved bool   `json:"volumes_removed" yaml:"volumes_removed"`
+}
+
 var downCmd = &cobra.Command{
 	Use:     "down",
 	Aliases: []string{"dock"},
@@ -56,16 +62,29 @@ Examples:
 
 		ui.PrintInfo("Docking Lake of Tears stack...")
 		execCmd := exec.Command(dockerCmd, argsCompose...)
-		execCmd.Stdout = os.Stdout
-		execCmd.Stderr = os.Stderr
-		execCmd.Stdin = os.Stdin
+		if ui.IsMachineOutput() {
+			execCmd.Stdout = ui.ErrWriter
+		} else {
+			execCmd.Stdout = ui.OutWriter
+		}
+		execCmd.Stderr = ui.ErrWriter
+		if !ui.IsNonInteractive() {
+			execCmd.Stdin = os.Stdin
+		}
 
 		if err := execCmd.Run(); err != nil {
 			return fmt.Errorf("docker compose down failed: %w", err)
 		}
 
-		ui.PrintSuccess("Lake of Tears stack docked safely.")
-		return nil
+		result := DownResult{
+			Status:         "docked",
+			ComposeFile:    composeFile,
+			VolumesRemoved: removeVolumes,
+		}
+
+		return ui.RenderOutput(result, func() {
+			ui.PrintSuccess("Lake of Tears stack docked safely.")
+		})
 	},
 }
 

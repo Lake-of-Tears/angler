@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Lake-of-Tears/angler/internal/ui"
@@ -17,34 +16,27 @@ var statusCmd = &cobra.Command{
 		c := getClient()
 		ctx := getActiveContext()
 
-		ui.PrintInfo("Checking Lake of Tears at %s ...", ui.TitleStyle.Render(ctx.Endpoint))
+		ui.PrintInfo("Checking Lake of Tears at %s ...", ui.StyleText(ui.TitleStyle, ctx.Endpoint))
 
 		health, err := c.Health()
 		if err != nil {
-			ui.PrintError("Connection failed: %v", err)
-			return err
+			return ui.NewConnectionError(err)
 		}
 
-		if jsonOutput {
-			data, _ := json.MarshalIndent(health, "", "  ")
-			fmt.Println(string(data))
-			return nil
-		}
-
-		ui.PrintSuccess("Connected to Lake of Tears successfully!")
-		fmt.Printf("Endpoint: %s\n", ctx.Endpoint)
-		fmt.Printf("Status:   %s\n", ui.SuccessStyle.Render(health.Status))
-		if health.Version != "" {
-			fmt.Printf("Version:  %s\n", health.Version)
-		}
-		if len(health.Services) > 0 {
-			fmt.Println("\nServices:")
-			for svc, st := range health.Services {
-				fmt.Printf("  • %-12s: %s\n", svc, st)
+		return ui.RenderOutput(health, func() {
+			ui.PrintSuccess("Connected to Lake of Tears successfully!")
+			fmt.Fprintf(ui.OutWriter, "Endpoint: %s\n", ctx.Endpoint)
+			fmt.Fprintf(ui.OutWriter, "Status:   %s\n", ui.StyleText(ui.SuccessStyle, health.Status))
+			if health.Version != "" {
+				fmt.Fprintf(ui.OutWriter, "Version:  %s\n", health.Version)
 			}
-		}
-
-		return nil
+			if len(health.Services) > 0 {
+				fmt.Fprintln(ui.OutWriter, "\nServices:")
+				for svc, st := range health.Services {
+					fmt.Fprintf(ui.OutWriter, "  • %-12s: %s\n", svc, st)
+				}
+			}
+		})
 	},
 }
 

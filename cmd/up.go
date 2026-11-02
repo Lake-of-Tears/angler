@@ -15,6 +15,12 @@ var (
 	detachMode  bool
 )
 
+type UpResult struct {
+	Status      string `json:"status" yaml:"status"`
+	ComposeFile string `json:"compose_file,omitempty" yaml:"compose_file,omitempty"`
+	Detached    bool   `json:"detached" yaml:"detached"`
+}
+
 var upCmd = &cobra.Command{
 	Use:     "up",
 	Aliases: []string{"launch"},
@@ -58,22 +64,34 @@ Examples:
 
 		ui.PrintInfo("Launching Lake of Tears stack...")
 		execCmd := exec.Command(dockerCmd, argsCompose...)
-		execCmd.Stdout = os.Stdout
-		execCmd.Stderr = os.Stderr
-		execCmd.Stdin = os.Stdin
+		if ui.IsMachineOutput() {
+			execCmd.Stdout = ui.ErrWriter
+		} else {
+			execCmd.Stdout = ui.OutWriter
+		}
+		execCmd.Stderr = ui.ErrWriter
+		if !ui.IsNonInteractive() {
+			execCmd.Stdin = os.Stdin
+		}
 
 		if err := execCmd.Run(); err != nil {
 			return fmt.Errorf("docker compose up failed: %w", err)
 		}
 
-		if detachMode {
-			ui.PrintSuccess("Lake of Tears launched in background!")
-			ui.PrintInfo("Waiting 3s for services to stabilize...")
-			time.Sleep(3 * time.Second)
-			_ = runStatusPing()
+		result := UpResult{
+			Status:      "launched",
+			ComposeFile: composeFile,
+			Detached:    detachMode,
 		}
 
-		return nil
+		return ui.RenderOutput(result, func() {
+			if detachMode {
+				ui.PrintSuccess("Lake of Tears launched in background!")
+				ui.PrintInfo("Waiting 3s for services to stabilize...")
+				time.Sleep(3 * time.Second)
+				_ = runStatusPing()
+			}
+		})
 	},
 }
 

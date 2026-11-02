@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Lake-of-Tears/angler/internal/ui"
@@ -15,26 +14,31 @@ var (
 	BuiltBy = "local"
 )
 
+type VersionInfo struct {
+	Version string `json:"version" yaml:"version"`
+	Commit  string `json:"commit" yaml:"commit"`
+	Date    string `json:"date" yaml:"date"`
+	BuiltBy string `json:"built_by" yaml:"built_by"`
+}
+
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the angler version",
-	Run: func(cmd *cobra.Command, args []string) {
-		if jsonOutput {
-			data, _ := json.MarshalIndent(map[string]string{
-				"version":  Version,
-				"commit":   Commit,
-				"date":     Date,
-				"built_by": BuiltBy,
-			}, "", "  ")
-			fmt.Println(string(data))
-			return
+	RunE: func(cmd *cobra.Command, args []string) error {
+		info := VersionInfo{
+			Version: Version,
+			Commit:  Commit,
+			Date:    Date,
+			BuiltBy: BuiltBy,
 		}
 
-		ui.PrintBanner()
-		fmt.Printf("angler version %s\n", ui.TitleStyle.Render(Version))
-		fmt.Printf("git commit:     %s\n", Commit)
-		fmt.Printf("build date:     %s\n", Date)
-		fmt.Printf("built by:       %s\n", BuiltBy)
+		return ui.RenderOutput(info, func() {
+			ui.PrintBanner()
+			fmt.Fprintf(ui.OutWriter, "angler version %s\n", ui.StyleText(ui.TitleStyle, Version))
+			fmt.Fprintf(ui.OutWriter, "git commit:     %s\n", Commit)
+			fmt.Fprintf(ui.OutWriter, "build date:     %s\n", Date)
+			fmt.Fprintf(ui.OutWriter, "built by:       %s\n", BuiltBy)
+		})
 	},
 }
 

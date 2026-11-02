@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -20,8 +19,8 @@ Examples:
   angler ask "Which region had the highest revenue drop last quarter?"
   angler sonar "Show anomalies detected in server telemetry yesterday"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 {
-			return fmt.Errorf("please provide a question or prompt for sonar")
+		if len(args) == 0 || strings.TrimSpace(strings.Join(args, " ")) == "" {
+			return ui.NewUsageError(fmt.Errorf("please provide a question or prompt for sonar"))
 		}
 
 		prompt := strings.Join(args, " ")
@@ -31,33 +30,26 @@ Examples:
 
 		resp, err := c.AIQuery(prompt)
 		if err != nil {
-			ui.PrintError("Sonar failed: %v", err)
 			return err
 		}
 
-		if jsonOutput {
-			data, _ := json.MarshalIndent(resp, "", "  ")
-			fmt.Println(string(data))
-			return nil
-		}
+		return ui.RenderOutput(resp, func() {
+			fmt.Fprintln(ui.OutWriter)
+			ui.PrintSuccess("Echo received from data lake:")
+			fmt.Fprintln(ui.OutWriter, ui.StyleText(ui.CardStyle, resp.Answer))
 
-		fmt.Println()
-		ui.PrintSuccess("Echo received from data lake:")
-		fmt.Println(ui.CardStyle.Render(resp.Answer))
-
-		if resp.SQLQuery != "" {
-			fmt.Println("\nGenerated SQL:")
-			fmt.Println(ui.MutedStyle.Render(resp.SQLQuery))
-		}
-
-		if len(resp.Sources) > 0 {
-			fmt.Println("\nGrounded Sources:")
-			for _, src := range resp.Sources {
-				fmt.Printf("  • %s\n", src)
+			if resp.SQLQuery != "" {
+				fmt.Fprintln(ui.OutWriter, "\nGenerated SQL:")
+				fmt.Fprintln(ui.OutWriter, ui.StyleText(ui.MutedStyle, resp.SQLQuery))
 			}
-		}
 
-		return nil
+			if len(resp.Sources) > 0 {
+				fmt.Fprintln(ui.OutWriter, "\nGrounded Sources:")
+				for _, src := range resp.Sources {
+					fmt.Fprintf(ui.OutWriter, "  • %s\n", src)
+				}
+			}
+		})
 	},
 }
 

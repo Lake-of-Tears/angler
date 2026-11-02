@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Lake-of-Tears/angler/internal/client"
 	"github.com/Lake-of-Tears/angler/internal/config"
@@ -11,11 +12,16 @@ import (
 )
 
 var (
-	cfgFile     string
-	ctxOverride string
-	endpoint    string
-	token       string
-	jsonOutput  bool
+	cfgFile           string
+	ctxOverride       string
+	endpoint          string
+	token             string
+	jsonOutput        bool
+	outputFlag        string
+	nonInteractive    bool
+	assumeYes         bool
+	forceExec         bool
+	runtimeConfigured bool
 
 	cfg *config.Config
 )
@@ -26,7 +32,13 @@ var rootCmd = &cobra.Command{
 	Long: `🎣 angler: Cast lines into your Lake of Tears data lakehouse.
 Query DuckDB over S3, manage cluster deployments, browse data catalogs, 
 and run AI semantic searches directly from your terminal.`,
+	SilenceErrors: true,
+	SilenceUsage:  true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := configureRuntimeMode(cmd); err != nil {
+			return err
+		}
+
 		var err error
 		cfg, err = config.LoadConfig()
 		if err != nil {
@@ -36,10 +48,56 @@ and run AI semantic searches directly from your terminal.`,
 	},
 }
 
+func configureRuntimeMode(cmd *cobra.Command) error {
+	runtimeConfigured = true
+	ui.SetNonInteractive(nonInteractive || assumeYes || forceExec)
+
+	resolved := ""
+	allowCSV := cmd != nil && cmd.Name() == "query"
+
+	if jsonOutput {
+		resolved = ui.FormatJSON
+	} else if outputFlag != "" {
+		resolved = strings.ToLower(strings.TrimSpace(outputFlag))
+	} else if cmd != nil && cmd.Name() == "query" && cmd.Flags().Changed("format") {
+		resolved = strings.ToLower(strings.TrimSpace(outputFormat))
+	} else if !ui.IsStdoutTTY() {
+		// Automatically switch to clean JSON when run by an AI agent, pipe, or script
+		resolved = ui.FormatJSON
+	} else {
+		resolved = ui.FormatTable
+	}
+
+	if err := ui.ValidateFormat(resolved, allowCSV); err != nil {
+		// When format is invalid, default error emission to JSON if --json or non-TTY
+		if jsonOutput || !ui.IsStdoutTTY() {
+			ui.SetOutputFormat(ui.FormatJSON)
+		} else {
+			ui.SetOutputFormat(ui.FormatTable)
+		}
+		return err
+	}
+
+	ui.SetOutputFormat(resolved)
+	return nil
+}
+
+// ExecuteRoot runs the root command and returns the deterministic exit code.
+func ExecuteRoot() int {
+	runtimeConfigured = false
+	executedCmd, err := rootCmd.ExecuteC()
+	if err != nil {
+		if !runtimeConfigured {
+			_ = configureRuntimeMode(executedCmd)
+		}
+		return ui.EmitError(err)
+	}
+	return ui.ExitOK
+}
+
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		ui.PrintError("%v", err)
-		os.Exit(1)
+	if code := ExecuteRoot(); code != ui.ExitOK {
+		os.Exit(code)
 	}
 }
 
@@ -48,9 +106,13 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.angler/config.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&ctxOverride, "context", "c", "", "context profile to use")
-	rootCmd.PersistentFlags().StringVarP(&endpoint, "endpoint", "e", "", "Lake of Tears API endpoint")
+	rootCmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "Lake of Tears API endpoint")
 	rootCmd.PersistentFlags().StringVarP(&token, "token", "t", "", "API authentication token")
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "output results in JSON format")
+	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "", "output format: table, json, yaml, toon")
+	rootCmd.PersistentFlags().BoolVar(&nonInteractive, "non-interactive", false, "disable interactive prompts")
+	rootCmd.PersistentFlags().BoolVarP(&assumeYes, "yes", "y", false, "automatic yes to prompts; run non-interactively")
+	rootCmd.PersistentFlags().BoolVar(&forceExec, "force", false, "bypass confirmation prompts")
 }
 
 func getActiveContext() config.Context {

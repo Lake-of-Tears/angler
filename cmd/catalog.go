@@ -1,12 +1,9 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Lake-of-Tears/angler/internal/ui"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
 	"github.com/spf13/cobra"
 )
 
@@ -37,42 +34,31 @@ func runCatalogList() error {
 	c := getClient()
 	items, err := c.ListCatalog()
 	if err != nil {
-		ui.PrintError("Failed to retrieve catalog: %v", err)
 		return err
 	}
 
-	if jsonOutput {
-		data, _ := json.MarshalIndent(items, "", "  ")
-		fmt.Println(string(data))
-		return nil
-	}
-
-	if len(items) == 0 {
-		ui.PrintInfo("No datasets found in catalog.")
-		return nil
-	}
-
-	tableRows := make([][]string, len(items))
-	for i, item := range items {
-		tableRows[i] = []string{
-			item.Name,
-			item.Type,
-			item.Format,
-			fmt.Sprintf("%d", item.Rows),
-			item.Size,
-			item.LastUpdated,
+	return ui.RenderOutput(items, func() {
+		if len(items) == 0 {
+			ui.PrintInfo("No datasets found in catalog.")
+			return
 		}
-	}
 
-	t := table.New().
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(lipgloss.NewStyle().Foreground(ui.BorderColor)).
-		Headers("Dataset Name", "Type", "Format", "Rows", "Size", "Updated").
-		Rows(tableRows...)
+		tableRows := make([][]string, len(items))
+		for i, item := range items {
+			tableRows[i] = []string{
+				item.Name,
+				item.Type,
+				item.Format,
+				fmt.Sprintf("%d", item.Rows),
+				item.Size,
+				item.LastUpdated,
+			}
+		}
 
-	fmt.Println(t)
-	ui.PrintSuccess("Total datasets netted: %d", len(items))
-	return nil
+		headers := []string{"Dataset Name", "Type", "Format", "Rows", "Size", "Updated"}
+		fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, tableRows))
+		ui.PrintSuccess("Total datasets netted: %d", len(items))
+	})
 }
 
 func init() {

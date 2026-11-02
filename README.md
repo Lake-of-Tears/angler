@@ -115,15 +115,77 @@ angler catalog ls
 | Command | Lake Alias | Description |
 | :--- | :--- | :--- |
 | `angler status` | `angler ping` | Check cluster connectivity and service health |
-| `angler query` | `angler cast` | Execute SQL queries (table, JSON, or CSV output) |
+| `angler query` | `angler cast` | Execute SQL queries (table, JSON, YAML, TOON, or CSV output) |
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
 | `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
+| `angler tool-defs` | `angler schema` | Export LLM tool/function schemas (Gemini, OpenAI, OpenAPI 3.1) |
 | `angler up` | `angler launch` | Spin up local Lake of Tears Docker stack |
 | `angler down` | `angler dock` | Stop and safely dock running containers |
 | `angler auth` | — | Log in, log out, and check authentication status |
 | `angler context` | — | Manage multiple environment profiles (`~/.angler/config.yaml`) |
 | `angler version` | — | Display build version, commit, and date |
 | `angler completion` | — | Generate shell autocompletions (bash, zsh, fish, powershell) |
+
+---
+
+## AI Agent & Machine-to-Machine Interface
+
+`angler` is built as a first-class interface for AI agents (Gemini, Claude, OpenAI, LangChain, CrewAI, Antigravity) and CI/CD automation.
+
+### 1. Global Structured Output (`json`, `yaml`, `toon`, `table`)
+
+Pass `--json` or `--output` (`-o`) to any command:
+
+```bash
+# JSON output
+angler catalog ls --json
+
+# Token-Oriented Object Notation (TOON) for token-efficient LLM consumption
+angler query "SELECT * FROM lake.telemetry LIMIT 5" --output toon
+
+# YAML output
+angler status --output yaml
+```
+
+When `--json` / `--output json|yaml|toon` is specified **or when `stdout` is not a TTY** (e.g., invoked by an AI agent subprocess or piped to `jq`):
+- Interactive banners, spinners, and ANSI escape sequences are suppressed.
+- Clean, valid structured data is written to `stdout`.
+- Informational logs, warnings, and structured error payloads are routed to `stderr`.
+
+### 2. LLM Tool Calling Schema Export (`angler tool-defs`)
+
+Dynamically introspect `angler`'s command tree to generate ready-to-use tool definitions:
+
+```bash
+# Google Gemini function declarations
+angler tool-defs --format gemini
+
+# OpenAI / Anthropic tool definitions
+angler tool-defs --format openai
+
+# OpenAPI 3.1.0 specification
+angler schema --format openapi
+
+# Include global flags (--context, --endpoint, --token, etc.) in tool schemas
+angler tool-defs --format openai --include-global-flags
+```
+
+### 3. Non-Interactive Execution & Exit Codes
+
+Bypass all terminal prompts with `--non-interactive`, `-y` (`--yes`), or `--force`:
+
+```bash
+angler auth login --non-interactive --email agent@example.com --password "$ANGLER_PASSWORD"
+```
+
+| Exit Code | Error Type | Meaning |
+| :--- | :--- | :--- |
+| `0` | `ok` | Command succeeded |
+| `1` | `runtime_error` | General or unexpected runtime error |
+| `2` | `usage_error` | Invalid syntax, flags, or missing required arguments |
+| `3` | `auth_error` | Authentication or permission failure (`HTTP 401/403`) |
+| `4` | `not_found` | Target resource or context profile not found (`HTTP 404`) |
+| `5` | `connection_error` | Lake of Tears endpoint unreachable |
 
 ---
 
@@ -152,6 +214,8 @@ For headless CI/CD environments, `angler` respects environment variables:
 | `ANGLER_ENDPOINT` | Override the active API endpoint |
 | `ANGLER_TOKEN` | API bearer token or service account key |
 | `ANGLER_CONTEXT` | Select active profile context name |
+| `ANGLER_EMAIL` | Account email for non-interactive `angler auth login` |
+| `ANGLER_PASSWORD` | Account password for non-interactive `angler auth login` |
 
 ---
 

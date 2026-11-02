@@ -1,15 +1,10 @@
 package cmd
 
 import (
-	"encoding/csv"
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/Lake-of-Tears/angler/internal/ui"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
 	"github.com/spf13/cobra"
 )
 
@@ -35,39 +30,17 @@ Examples:
 		}
 
 		if strings.TrimSpace(statement) == "" {
-			return fmt.Errorf("no SQL query provided. Specify query as argument or with -e \"SELECT ...\"")
+			return ui.NewUsageError(fmt.Errorf("no SQL query provided. Specify query as argument or with -e \"SELECT ...\""))
 		}
 
 		c := getClient()
-		ui.PrintInfo("Casting query: %s", ui.TitleStyle.Render(statement))
+		ui.PrintInfo("Casting query: %s", ui.StyleText(ui.TitleStyle, statement))
 
 		res, err := c.Query(statement)
 		if err != nil {
-			ui.PrintError("Query failed: %v", err)
 			return err
 		}
 
-		if jsonOutput || outputFormat == "json" {
-			data, _ := json.MarshalIndent(res, "", "  ")
-			fmt.Println(string(data))
-			return nil
-		}
-
-		if outputFormat == "csv" {
-			writer := csv.NewWriter(os.Stdout)
-			_ = writer.Write(res.Columns)
-			for _, row := range res.Rows {
-				rowStr := make([]string, len(row))
-				for i, val := range row {
-					rowStr[i] = fmt.Sprintf("%v", val)
-				}
-				_ = writer.Write(rowStr)
-			}
-			writer.Flush()
-			return nil
-		}
-
-		// Render table using lipgloss/table
 		tableRows := make([][]string, len(res.Rows))
 		for i, row := range res.Rows {
 			tableRows[i] = make([]string, len(row))
@@ -76,20 +49,20 @@ Examples:
 			}
 		}
 
-		t := table.New().
-			Border(lipgloss.RoundedBorder()).
-			BorderStyle(lipgloss.NewStyle().Foreground(ui.BorderColor)).
-			Headers(res.Columns...).
-			Rows(tableRows...)
+		activeFormat := ui.GetOutputFormat()
+		if activeFormat == ui.FormatCSV || strings.EqualFold(outputFormat, ui.FormatCSV) && !cmd.Flags().Changed("output") && !jsonOutput {
+			return ui.RenderCSV(res.Columns, tableRows)
+		}
 
-		fmt.Println(t)
-		ui.PrintSuccess("Reeled in %d rows in %s.", res.RowCount, res.Duration)
-		return nil
+		return ui.RenderOutput(res, func() {
+			fmt.Fprintln(ui.OutWriter, ui.RenderTable(res.Columns, tableRows))
+			ui.PrintSuccess("Reeled in %d rows in %s.", res.RowCount, res.Duration)
+		})
 	},
 }
 
 func init() {
 	queryCmd.Flags().StringVarP(&sqlStatement, "execute", "e", "", "SQL query statement to execute")
-	queryCmd.Flags().StringVarP(&outputFormat, "format", "f", "table", "Output format: table, json, csv")
+	queryCmd.Flags().StringVarP(&outputFormat, "format", "f", "table", "Output format: table, json, yaml, toon, csv")
 	rootCmd.AddCommand(queryCmd)
 }
