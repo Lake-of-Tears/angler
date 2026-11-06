@@ -18,6 +18,48 @@ var statusCmd = &cobra.Command{
 
 		ui.PrintInfo("Checking Lake of Tears at %s ...", ui.StyleText(ui.TitleStyle, ctx.Endpoint))
 
+		if ctx.Token != "" {
+			clusterStatus, err := c.ClusterStatus()
+			if err == nil {
+				return ui.RenderOutput(clusterStatus, func() {
+					ui.PrintSuccess("Connected to Lake of Tears cluster successfully!")
+					fmt.Fprintf(ui.OutWriter, "Endpoint:  %s\n", ctx.Endpoint)
+					fmt.Fprintf(ui.OutWriter, "Status:    %s\n", ui.StyleText(ui.SuccessStyle, clusterStatus.Status))
+					fmt.Fprintf(ui.OutWriter, "Mode:      %s\n", clusterStatus.Mode)
+					fmt.Fprintf(ui.OutWriter, "Namespace: %s\n", clusterStatus.Namespace)
+					fmt.Fprintf(ui.OutWriter, "Healthy:   %d / %d services\n", clusterStatus.HealthyCount, clusterStatus.TotalServices)
+
+					if len(clusterStatus.Services) > 0 {
+						fmt.Fprintln(ui.OutWriter, "\nServices:")
+						for _, srv := range clusterStatus.Services {
+							statusStyle := ui.SuccessStyle
+							if srv.Status != "running" {
+								statusStyle = ui.ErrorStyle
+							}
+							details := ""
+							if srv.LatencyMs != nil {
+								details += fmt.Sprintf(" (%.1fms)", *srv.LatencyMs)
+							}
+							if srv.CpuLimit != nil || srv.MemoryLimit != nil {
+								lim := ""
+								if srv.CpuLimit != nil {
+									lim += "cpu:" + *srv.CpuLimit
+								}
+								if srv.MemoryLimit != nil {
+									if lim != "" {
+										lim += " "
+									}
+									lim += "mem:" + *srv.MemoryLimit
+								}
+								details += fmt.Sprintf(" [%s]", lim)
+							}
+							fmt.Fprintf(ui.OutWriter, "  • %-26s: %s%s\n", srv.DisplayName, ui.StyleText(statusStyle, srv.Status), details)
+						}
+					}
+				})
+			}
+		}
+
 		health, err := c.Health()
 		if err != nil {
 			return ui.NewConnectionError(err)
