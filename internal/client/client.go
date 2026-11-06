@@ -543,3 +543,114 @@ func (c *Client) DestroyBundle(id string, cascade, purgeStorage bool) (*BundleDe
 	}
 	return &res, nil
 }
+
+// -----------------------------------------------------------------------------
+// Cluster Status & Topology API Client Models & Methods
+// -----------------------------------------------------------------------------
+
+type ServiceHealthDetail struct {
+	Name              string                 `json:"name"`
+	DisplayName       string                 `json:"display_name"`
+	Status            string                 `json:"status"`
+	Category          string                 `json:"category"`
+	Port              *int                   `json:"port,omitempty"`
+	PodName           *string                `json:"pod_name,omitempty"`
+	NodeName          *string                `json:"node_name,omitempty"`
+	Restarts          int                    `json:"restarts"`
+	Uptime            *string                `json:"uptime,omitempty"`
+	CreatedAt         *string                `json:"created_at,omitempty"`
+	CpuUsage          *string                `json:"cpu_usage,omitempty"`
+	MemoryUsage       *string                `json:"memory_usage,omitempty"`
+	CpuLimit          *string                `json:"cpu_limit,omitempty"`
+	MemoryLimit       *string                `json:"memory_limit,omitempty"`
+	ActiveConnections *int                   `json:"active_connections,omitempty"`
+	LatencyMs         *float64               `json:"latency_ms,omitempty"`
+	Error             *string                `json:"error,omitempty"`
+	ExtraDetails      map[string]interface{} `json:"extra_details,omitempty"`
+}
+
+type ClusterStatusResponse struct {
+	Status           string                         `json:"status"`
+	ClusterConnected bool                           `json:"cluster_connected"`
+	Mode             string                         `json:"mode"`
+	Namespace        string                         `json:"namespace"`
+	Timestamp        string                         `json:"timestamp"`
+	TotalServices    int                            `json:"total_services"`
+	HealthyCount     int                            `json:"healthy_count"`
+	Services         map[string]ServiceHealthDetail `json:"services"`
+}
+
+type IngressRoute struct {
+	Service    string `json:"service"`
+	URL        string `json:"url"`
+	Host       string `json:"host"`
+	Path       string `json:"path"`
+	TLSEnabled bool   `json:"tls_enabled"`
+}
+
+type StorageVolume struct {
+	Name         string  `json:"name"`
+	PVCName      *string `json:"pvc_name,omitempty"`
+	MountPath    string  `json:"mount_path"`
+	Size         *string `json:"size,omitempty"`
+	StorageClass *string `json:"storage_class,omitempty"`
+	Status       *string `json:"status,omitempty"`
+}
+
+type ClusterTopologyResponse struct {
+	Namespace      string                 `json:"namespace"`
+	Mode           string                 `json:"mode"`
+	IngressRoutes  []IngressRoute         `json:"ingress_routes"`
+	StorageVolumes []StorageVolume        `json:"storage_volumes"`
+	RawConfig      map[string]interface{} `json:"raw_config,omitempty"`
+}
+
+func (c *Client) ClusterStatus() (*ClusterStatusResponse, error) {
+	req, err := c.newRequest(http.MethodGet, "/api/cluster/status", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch cluster status: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("cluster status error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var status ClusterStatusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return nil, fmt.Errorf("failed to parse cluster status response: %w", err)
+	}
+
+	return &status, nil
+}
+
+func (c *Client) ClusterTopology() (*ClusterTopologyResponse, error) {
+	req, err := c.newRequest(http.MethodGet, "/api/cluster/topology", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch cluster topology: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("cluster topology error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var topology ClusterTopologyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&topology); err != nil {
+		return nil, fmt.Errorf("failed to parse cluster topology response: %w", err)
+	}
+
+	return &topology, nil
+}
