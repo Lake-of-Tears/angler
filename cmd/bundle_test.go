@@ -209,10 +209,10 @@ func setupMockBundleServer(t *testing.T) (*httptest.Server, *client.Client) {
 				Target:       req.Target,
 				DagValidated: true,
 				Diff: &client.BundleValidationDiff{
-					ToCreate:  []string{"catalog.main_lake", "schema.bronze"},
-					ToUpdate:  []string{},
-					ToDelete:  []string{},
-					Unchanged: []string{},
+					ToCreate:  []interface{}{"catalog.main_lake", "schema.bronze"},
+					ToUpdate:  []interface{}{},
+					ToDelete:  []interface{}{},
+					Unchanged: []interface{}{},
 				},
 			}
 			_ = json.NewEncoder(w).Encode(resp)

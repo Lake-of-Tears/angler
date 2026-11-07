@@ -851,17 +851,34 @@ func renderDiffTable(diff *client.BundleValidationDiff) {
 	headers := []string{"Action", "Resource Identifier"}
 	var rows [][]string
 
+	formatResource := func(item interface{}) string {
+		if s, ok := item.(string); ok {
+			return s
+		}
+		if m, ok := item.(map[string]interface{}); ok {
+			t, _ := m["type"].(string)
+			n, _ := m["name"].(string)
+			if t != "" && n != "" {
+				return fmt.Sprintf("%s.%s", t, n)
+			}
+			if n != "" {
+				return n
+			}
+		}
+		return fmt.Sprintf("%v", item)
+	}
+
 	for _, r := range diff.ToCreate {
-		rows = append(rows, []string{"+ CREATE", r})
+		rows = append(rows, []string{"+ CREATE", formatResource(r)})
 	}
 	for _, r := range diff.ToUpdate {
-		rows = append(rows, []string{"~ UPDATE", r})
+		rows = append(rows, []string{"~ UPDATE", formatResource(r)})
 	}
 	for _, r := range diff.ToDelete {
-		rows = append(rows, []string{"- DELETE", r})
+		rows = append(rows, []string{"- DELETE", formatResource(r)})
 	}
 	for _, r := range diff.Unchanged {
-		rows = append(rows, []string{"= UNCHANGED", r})
+		rows = append(rows, []string{"= UNCHANGED", formatResource(r)})
 	}
 
 	if len(rows) > 0 {
@@ -872,7 +889,7 @@ func renderDiffTable(diff *client.BundleValidationDiff) {
 
 func init() {
 	// Persistent and local flags
-	bundleCmd.PersistentFlags().StringVar(&bundleTargetFlag, "target", "", "Target environment (e.g. dev, staging, prod)")
+	bundleCmd.PersistentFlags().StringVarP(&bundleTargetFlag, "target", "T", "", "Target environment (e.g. dev, staging, prod)")
 	bundleCmd.PersistentFlags().StringVarP(&bundleFileFlag, "file", "f", "", "Path to bundle manifest file (lake.toon, lake.yml)")
 
 	// init flags

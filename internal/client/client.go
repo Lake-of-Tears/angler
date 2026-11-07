@@ -271,10 +271,10 @@ type BundleValidateRequest struct {
 }
 
 type BundleValidationDiff struct {
-	ToCreate  []string `json:"to_create"`
-	ToUpdate  []string `json:"to_update"`
-	ToDelete  []string `json:"to_delete"`
-	Unchanged []string `json:"unchanged"`
+	ToCreate  []interface{} `json:"to_create"`
+	ToUpdate  []interface{} `json:"to_update"`
+	ToDelete  []interface{} `json:"to_delete"`
+	Unchanged []interface{} `json:"unchanged"`
 }
 
 type BundleValidationResponse struct {
