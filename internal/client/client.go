@@ -300,6 +300,7 @@ type BundleDeployRequest struct {
 }
 
 type BundleDeployResponse struct {
+	ID                  string                `json:"id"`
 	BundleID            string                `json:"bundle_id"`
 	BundleName          string                `json:"bundle_name"`
 	Target              string                `json:"target"`
@@ -307,6 +308,7 @@ type BundleDeployResponse struct {
 	Version             string                `json:"version"`
 	Message             string                `json:"message"`
 	DryRun              bool                  `json:"dry_run"`
+	ResourcesMap        map[string][]string   `json:"resources_map,omitempty"`
 	ProvisionedCounts   map[string]int        `json:"provisioned_counts,omitempty"`
 	Diff                *BundleValidationDiff `json:"diff,omitempty"`
 	ExecutionDurationMs float64               `json:"execution_duration_ms,omitempty"`

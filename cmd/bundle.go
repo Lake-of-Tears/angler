@@ -556,7 +556,12 @@ Examples:
 		}
 
 		return ui.RenderOutput(res, func() {
-			if bundleDryRunFlag || res.DryRun || res.BundleID == "" {
+			effectiveID := res.ID
+			if effectiveID == "" {
+				effectiveID = res.BundleID
+			}
+
+			if bundleDryRunFlag || res.DryRun || effectiveID == "" {
 				ui.PrintWarning("DRY RUN: Deployment simulation completed")
 				fmt.Fprintf(ui.OutWriter, "  Bundle:  %s\n", res.BundleName)
 				fmt.Fprintf(ui.OutWriter, "  Target:  %s\n", res.Target)
@@ -571,10 +576,17 @@ Examples:
 			}
 
 			ui.PrintSuccess("Bundle '%s' deployed successfully to target '%s' in %.1fms", res.BundleName, res.Target, res.ExecutionDurationMs)
-			fmt.Fprintf(ui.OutWriter, "  Bundle ID: %s\n", res.BundleID)
+			fmt.Fprintf(ui.OutWriter, "  Bundle ID: %s\n", effectiveID)
 			fmt.Fprintf(ui.OutWriter, "  Status:    %s\n", res.Status)
-			fmt.Fprintf(ui.OutWriter, "  Version:   v%s\n", res.Version)
-			if len(res.ProvisionedCounts) > 0 {
+			if res.Version != "" {
+				fmt.Fprintf(ui.OutWriter, "  Version:   v%s\n", res.Version)
+			}
+			if len(res.ResourcesMap) > 0 {
+				fmt.Fprintf(ui.OutWriter, "  Provisioned Resources:\n")
+				for k, ids := range res.ResourcesMap {
+					fmt.Fprintf(ui.OutWriter, "    • %s: %d\n", k, len(ids))
+				}
+			} else if len(res.ProvisionedCounts) > 0 {
 				fmt.Fprintf(ui.OutWriter, "  Provisioned:\n")
 				for k, count := range res.ProvisionedCounts {
 					fmt.Fprintf(ui.OutWriter, "    • %s: %d\n", k, count)
