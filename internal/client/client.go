@@ -51,6 +51,7 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "angler-cli")
+	req.Header.Set("X-Workspace-Slug", "default")
 	if c.Token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
 	}
@@ -374,6 +375,9 @@ func (c *Client) ValidateBundle(req *BundleValidateRequest) (*BundleValidationRe
 	if err != nil {
 		return nil, err
 	}
+	if req.WorkspaceSlug != "" {
+		httpReq.Header.Set("X-Workspace-Slug", req.WorkspaceSlug)
+	}
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
@@ -397,6 +401,9 @@ func (c *Client) DeployBundle(req *BundleDeployRequest) (*BundleDeployResponse, 
 	httpReq, err := c.newRequest(http.MethodPost, "/api/bundles/deploy", req)
 	if err != nil {
 		return nil, err
+	}
+	if req.WorkspaceSlug != "" {
+		httpReq.Header.Set("X-Workspace-Slug", req.WorkspaceSlug)
 	}
 
 	resp, err := c.HTTPClient.Do(httpReq)
