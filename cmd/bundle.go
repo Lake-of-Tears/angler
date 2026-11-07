@@ -556,9 +556,14 @@ Examples:
 		}
 
 		return ui.RenderOutput(res, func() {
-			if res.DryRun {
-				ui.PrintWarning("DRY RUN: Deployment simulation completed in %.1fms", res.ExecutionDurationMs)
-				fmt.Fprintf(ui.OutWriter, "Target: %s | Status: %s | Version: v%s\n\n", res.Target, res.Status, res.Version)
+			if bundleDryRunFlag || res.DryRun || res.BundleID == "" {
+				ui.PrintWarning("DRY RUN: Deployment simulation completed")
+				fmt.Fprintf(ui.OutWriter, "  Bundle:  %s\n", res.BundleName)
+				fmt.Fprintf(ui.OutWriter, "  Target:  %s\n", res.Target)
+				fmt.Fprintf(ui.OutWriter, "  Status:  %s\n", res.Status)
+				if res.Message != "" {
+					fmt.Fprintf(ui.OutWriter, "  Message: %s\n", res.Message)
+				}
 				if res.Diff != nil {
 					renderDiffTable(res.Diff)
 				}
@@ -858,6 +863,11 @@ func renderDiffTable(diff *client.BundleValidationDiff) {
 		if m, ok := item.(map[string]interface{}); ok {
 			t, _ := m["type"].(string)
 			n, _ := m["name"].(string)
+			if n == "" {
+				if title, ok := m["title"].(string); ok {
+					n = title
+				}
+			}
 			if t != "" && n != "" {
 				return fmt.Sprintf("%s.%s", t, n)
 			}
