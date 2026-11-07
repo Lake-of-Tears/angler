@@ -53,7 +53,7 @@ changelog:
       - "^test:"
       - "^ci:"
 
-homebrews:
+brews:
   - name: angler
     repository:
       owner: Lake-of-Tears
