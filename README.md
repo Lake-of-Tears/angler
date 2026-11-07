@@ -114,6 +114,7 @@ angler catalog ls
 
 | Command | Lake Alias | Description |
 | :--- | :--- | :--- |
+| `angler bundle` | `angler lab` | Develop, validate, deploy, and manage Lake Asset Bundles (LABs) |
 | `angler status` | `angler ping` | Check cluster connectivity and service health |
 | `angler query` | `angler cast` | Execute SQL queries (table, JSON, YAML, TOON, or CSV output) |
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
@@ -125,6 +126,36 @@ angler catalog ls
 | `angler context` | — | Manage multiple environment profiles (`~/.angler/config.yaml`) |
 | `angler version` | — | Display build version, commit, and date |
 | `angler completion` | — | Generate shell autocompletions (bash, zsh, fish, powershell) |
+
+---
+
+## Lake Asset Bundles (LABs)
+
+`angler bundle` brings declarative Infrastructure-as-Code to your data lakehouse with AI-first Token-Oriented Object Notation (`lake.toon`) and YAML compatibility.
+
+```bash
+# Initialize a new project with starter templates
+angler bundle init my-analytics --template medallion
+
+# Validate manifest syntax offline or against remote server
+angler bundle validate --local
+angler bundle validate --target dev
+
+# Simulate deployment with diff reconciliation plan
+angler bundle deploy --target prod --dry-run
+
+# Deploy bundle assets, managed tables, and Airflow DAGs
+angler bundle deploy --target dev
+
+# Trigger ad-hoc pipeline execution
+angler bundle run orders_etl --target dev
+
+# List active deployed bundles
+angler bundle ls
+
+# Teardown and unprovision bundle resources
+angler bundle destroy --target dev --purge-storage -y
+```
 
 ---
 
