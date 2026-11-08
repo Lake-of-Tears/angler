@@ -58,6 +58,13 @@ func executeCLIForTest(t *testing.T, stdoutTTY bool, args ...string) (string, st
 	aiMode = "auto"
 	aiModel = ""
 	aiKey = ""
+	dashTitle = ""
+	dashDescription = ""
+	dashTemplate = "blank"
+	dashSpecFile = ""
+	dashPublished = true
+	dashForce = false
+	dashTimeRange = ""
 
 	defer func() {
 		ui.OutWriter = os.Stdout
