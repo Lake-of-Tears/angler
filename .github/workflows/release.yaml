@@ -90,7 +90,7 @@ jobs:
           echo "=========================================="
 
   publish:
-    name: "Stage 2: GoReleaser & Homebrew Tap"
+    name: "Stage 2: GoReleaser, Homebrew, Scoop & Linux Packages"
     needs: [inspect]
     runs-on: ubuntu-24.04
     steps:
@@ -157,6 +157,7 @@ jobs:
           SOURCE_SHA="${{ needs.inspect.outputs.source_sha }}"
           LATEST_RELEASE="${{ needs.inspect.outputs.latest_release }}"
           SHORT_SHA="${SOURCE_SHA:0:7}"
+          CLEAN_VER="${TARGET_TAG#v}"
 
           cat << EOF >> "$GITHUB_STEP_SUMMARY"
           # 🎣 Angler CLI — Production Release Summary
@@ -170,29 +171,126 @@ jobs:
           | **Target Commit** | [\`${SHORT_SHA}\`](${{ github.server_url }}/${{ github.repository }}/commit/${SOURCE_SHA}) |
           | **Triggered By** | \`${{ github.actor }}\` via manual dispatch |
           | **Pre-release** | \`${{ inputs.prerelease }}\` |
-          | **Homebrew Tap** | [\`Lake-of-Tears/homebrew-tap\`](https://github.com/Lake-of-Tears/homebrew-tap) |
           | **GitHub Release** | [View Release on GitHub](${{ github.server_url }}/${{ github.repository }}/releases/tag/${TARGET_TAG}) |
 
-          ### 📦 Published Artifacts & Supported Platforms
-          | Operating System | Architecture | Archive File |
+          ### 📦 Published Artifacts & Distribution Channels
+          | Platform | Channel / Package | Artifact |
           |---|---|---|
-          | **macOS** | Apple Silicon (\`arm64\`) | \`angler_${TARGET_TAG#v}_darwin_arm64.tar.gz\` |
-          | **macOS** | Intel x86_64 (\`amd64\`) | \`angler_${TARGET_TAG#v}_darwin_amd64.tar.gz\` |
-          | **Linux** | ARM64 (\`arm64\`) | \`angler_${TARGET_TAG#v}_linux_arm64.tar.gz\` |
-          | **Linux** | x86_64 (\`amd64\`) | \`angler_${TARGET_TAG#v}_linux_amd64.tar.gz\` |
-          | **Windows** | x86_64 (\`amd64\`) | \`angler_${TARGET_TAG#v}_windows_amd64.zip\` |
-          | **Windows** | ARM64 (\`arm64\`) | \`angler_${TARGET_TAG#v}_windows_arm64.zip\` |
-          | **Integrity** | All Architectures | \`checksums.txt\` (SHA-256) |
+          | **macOS / Linux** | **Homebrew Tap** | [\`Lake-of-Tears/homebrew-tap\`](https://github.com/Lake-of-Tears/homebrew-tap) |
+          | **Windows** | **Scoop Bucket** | [\`Lake-of-Tears/scoop-bucket\`](https://github.com/Lake-of-Tears/scoop-bucket) |
+          | **Debian / Ubuntu** | **Debian Package** | \`angler_${CLEAN_VER}_linux_amd64.deb\` / \`arm64.deb\` |
+          | **RedHat / Fedora** | **RPM Package** | \`angler_${CLEAN_VER}_linux_amd64.rpm\` / \`arm64.rpm\` |
+          | **macOS Binaries** | Tarball | \`angler_${CLEAN_VER}_darwin_arm64.tar.gz\` / \`amd64.tar.gz\` |
+          | **Linux Binaries** | Tarball | \`angler_${CLEAN_VER}_linux_arm64.tar.gz\` / \`amd64.tar.gz\` |
+          | **Windows Binaries** | Zip Archive | \`angler_${CLEAN_VER}_windows_amd64.zip\` / \`arm64.zip\` |
+          | **Checksums** | SHA-256 | \`checksums.txt\` |
 
-          ### 🍺 Homebrew Upgrade Instructions
-          To update your local Homebrew installation to \`$TARGET_TAG\`:
+          ### 🚀 How to Install or Upgrade
+
+          #### macOS & Linux (Homebrew)
           \`\`\`bash
           brew update
           brew upgrade angler
+          # Or fresh install:
+          brew install Lake-of-Tears/tap/angler
           \`\`\`
 
-          Verify the installation:
+          #### Windows (Scoop)
+          \`\`\`powershell
+          scoop bucket add lake-of-tears https://github.com/Lake-of-Tears/scoop-bucket
+          scoop install angler
+          \`\`\`
+
+          #### Debian / Ubuntu (.deb)
           \`\`\`bash
-          angler version
+          curl -sLO "https://github.com/Lake-of-Tears/angler/releases/download/${TARGET_TAG}/angler_${CLEAN_VER}_linux_amd64.deb"
+          sudo dpkg -i angler_${CLEAN_VER}_linux_amd64.deb
+          \`\`\`
+
+          #### RedHat / Fedora (.rpm)
+          \`\`\`bash
+          sudo rpm -i "https://github.com/Lake-of-Tears/angler/releases/download/${TARGET_TAG}/angler_${CLEAN_VER}_linux_amd64.rpm"
           \`\`\`
           EOF
+
+  chocolatey:
+    name: "Stage 3: Chocolatey Package & Publish"
+    needs: [inspect, publish]
+    runs-on: windows-latest
+    if: ${{ secrets.CHOCOLATEY_API_KEY != '' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.inspect.outputs.target_tag }}
+
+      - name: Download Windows Release Archive & Extract Checksum
+        shell: bash
+        run: |
+          TARGET_TAG="${{ needs.inspect.outputs.target_tag }}"
+          CLEAN_VER="${TARGET_TAG#v}"
+
+          # Fetch checksums.txt from newly published release
+          curl -sSL "https://github.com/Lake-of-Tears/angler/releases/download/${TARGET_TAG}/checksums.txt" -o checksums.txt
+          SHA256_64=$(grep "angler_${CLEAN_VER}_windows_amd64.zip" checksums.txt | awk '{print $1}')
+
+          echo "sha256_64=$SHA256_64" >> "$GITHUB_ENV"
+          echo "clean_ver=$CLEAN_VER" >> "$GITHUB_ENV"
+
+      - name: Generate Chocolatey Manifests
+        shell: pwsh
+        run: |
+          $ver = $env:clean_ver
+          $tag = "${{ needs.inspect.outputs.target_tag }}"
+          $sha64 = $env:sha256_64
+
+          New-Item -ItemType Directory -Force -Path "choco\tools" | Out-Null
+
+          # Generate nuspec
+          @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+            <metadata>
+              <id>angler</id>
+              <version>$ver</version>
+              <title>Angler CLI (Lake of Tears)</title>
+              <authors>Lake of Tears Team</authors>
+              <projectUrl>https://thelakeoftears.com</projectUrl>
+              <licenseUrl>https://github.com/Lake-of-Tears/angler/blob/main/LICENSE</licenseUrl>
+              <requireLicenseAcceptance>false</requireLicenseAcceptance>
+              <description>The official CLI for Lake of Tears — cast queries, launch clusters, inspect catalogs, and reel in data.</description>
+              <summary>Lake of Tears CLI: query DuckDB over S3, manage clusters, and execute AI queries.</summary>
+              <tags>lake-of-tears angler datalakehouse duckdb s3 cli</tags>
+              <packageSourceUrl>https://github.com/Lake-of-Tears/angler</packageSourceUrl>
+            </metadata>
+            <files>
+              <file src="tools\**" target="tools" />
+            </files>
+          </package>
+          "@ | Set-Content -Path "choco\angler.nuspec"
+
+          # Generate chocolateyinstall.ps1
+          @"
+          `$ErrorActionPreference = 'Stop'
+          `$toolsDir = "`$(Split-Path -parent `$MyInvocation.MyCommand.Definition)"
+          `$url64 = "https://github.com/Lake-of-Tears/angler/releases/download/$tag/angler_${ver}_windows_amd64.zip"
+
+          `$packageArgs = @{
+            packageName   = 'angler'
+            unzipLocation = `$toolsDir
+            url64bit      = `$url64
+            checksum64    = '$sha64'
+            checksumType64= 'sha256'
+          }
+
+          Install-ChocolateyZipPackage @packageArgs
+          "@ | Set-Content -Path "choco\tools\chocolateyinstall.ps1"
+
+      - name: Pack and Push to Chocolatey
+        shell: pwsh
+        env:
+          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+        run: |
+          Set-Location choco
+          choco pack angler.nuspec
+          choco push "angler.$($env:clean_ver).nupkg" --api-key $env:CHOCOLATEY_API_KEY --source https://push.chocolatey.org/

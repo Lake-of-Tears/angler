@@ -69,18 +69,27 @@ brews:
     test: |
       system "#{bin}/angler", "version"
 
-# chocolateys:
-#   - name: angler
-#     package_source_url: "https://github.com/Lake-of-Tears/angler"
-#     owners: "Lake-of-Tears"
-#     title: "Lake of Tears Angler CLI"
-#     authors: "Lake of Tears Team"
-#     project_url: "https://thelakeoftears.com"
-#     license_url: "https://github.com/Lake-of-Tears/angler/blob/main/LICENSE"
-#     require_license_acceptance: false
-#     description: "The official CLI for Lake of Tears — cast queries, launch clusters, inspect catalogs, and reel in data."
-#     summary: "Lake of Tears CLI: query DuckDB over S3, manage clusters, and execute AI queries."
-#     tags: "lake-of-tears angler datalakehouse duckdb s3 cli"
-#     api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
-#     source_repo: "https://push.chocolatey.org/"
-#     skip_publish: false
+scoops:
+  - name: angler
+    repository:
+      owner: Lake-of-Tears
+      name: scoop-bucket
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: bucket
+    homepage: "https://thelakeoftears.com"
+    description: "The official CLI for Lake of Tears — cast queries, launch clusters, inspect catalogs, and reel in data"
+    license: "MIT"
+
+nfpms:
+  - id: packages
+    package_name: angler
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: "Lake of Tears"
+    homepage: "https://thelakeoftears.com"
+    maintainer: "Lake of Tears Team <team@thelakeoftears.com>"
+    description: "The official CLI for Lake of Tears — cast queries, launch clusters, inspect catalogs, and reel in data"
+    license: "MIT"
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin

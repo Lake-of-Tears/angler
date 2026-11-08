@@ -17,12 +17,13 @@
 
 ## Installation
 
-### macOS (Homebrew)
+### macOS & Linux (Homebrew)
 
 Install directly from the official Lake of Tears tap:
 
 ```bash
 brew tap Lake-of-Tears/tap
+brew trust lake-of-tears/tap
 brew install angler
 ```
 
@@ -32,12 +33,33 @@ Or in a single command:
 brew install Lake-of-Tears/tap/angler
 ```
 
+### Windows (Scoop)
+
+Install using the developer-friendly Scoop bucket:
+
+```powershell
+scoop bucket add lake-of-tears https://github.com/Lake-of-Tears/scoop-bucket
+scoop install angler
+```
+
 ### Windows (Chocolatey)
 
 Install using Chocolatey package manager:
 
 ```powershell
 choco install angler
+```
+
+### Linux (Debian, Ubuntu, RedHat, Fedora)
+
+Download native `.deb` or `.rpm` packages directly from [GitHub Releases](https://github.com/Lake-of-Tears/angler/releases):
+
+```bash
+# Debian / Ubuntu (x86_64 or ARM64)
+sudo dpkg -i angler_*_linux_amd64.deb
+
+# RedHat / Fedora / AlmaLinux
+sudo rpm -i angler_*_linux_amd64.rpm
 ```
 
 ### Pre-compiled Standalone Binaries
