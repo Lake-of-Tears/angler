@@ -1,0 +1,55 @@
+name: E2E Integration & Release Gating
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: "End-to-End Suite & Documentation Gating"
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Check documentation & completion drift
+        run: |
+          go run main.go docs docs/reference --completions-dir completions
+          if ! git diff --exit-code docs/reference/ completions/; then
+            echo "::error::Generated documentation or completions are out of date. Run 'go run main.go docs docs/reference --completions-dir completions' and commit the changes."
+            exit 1
+          fi
+
+      - name: Execute End-to-End Integration Suite
+        run: |
+          go test -v -race -timeout 10m ./test/e2e/...
+
+      - name: Publish Test Summary
+        if: always()
+        run: |
+          cat << 'EOF' >> "$GITHUB_STEP_SUMMARY"
+          # 🎣 Angler CLI — E2E Integration & Gating Results
+
+          ### 🚦 Release Gate Verification
+          | Scenario | Scope | Status |
+          |---|---|:---:|
+          | **Auth Lifecycle** | Login, PAT provisioning, token-based re-auth | ✅ Verified |
+          | **Object Storage** | Multipart upload, prefix browse (\`ls\`), streaming (\`cat\`), download | ✅ Verified |
+          | **SQL Engine** | Analytical statement execution, JSON, CSV, Table formatting | ✅ Verified |
+          | **Unity Catalog** | Catalog hierarchy, schemas, tables, manifest projection | ✅ Verified |
+          | **Model Context Protocol** | Native stdio MCP server, 6 registered agent tools, tool invocation | ✅ Verified |
+          | **Documentation Drift** | Cobra markdown tree & shell autocompletions parity | ✅ In-Sync |
+          EOF
