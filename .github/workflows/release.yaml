@@ -422,7 +422,14 @@ jobs:
           CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
         run: |
           Set-Location choco
-          choco push "angler.$($env:clean_ver).nupkg" --api-key $env:CHOCOLATEY_API_KEY --source https://push.chocolatey.org/
+          $pushOutput = choco push "angler.$($env:clean_ver).nupkg" --api-key $env:CHOCOLATEY_API_KEY --source https://push.chocolatey.org/ 2>&1
+          $pushOutput | Write-Host
+          if ($LASTEXITCODE -ne 0) {
+            if ($pushOutput -match "403" -or $pushOutput -match "Forbidden") {
+              Write-Host "::error::Chocolatey push returned 403 (Forbidden). Chocolatey Community Repository policy locks new package IDs against subsequent version pushes while the initial version is still pending community moderation (0 approved versions). Once the initial version is approved by Chocolatey moderators, re-run this job to publish v$($env:clean_ver)."
+            }
+            exit $LASTEXITCODE
+          }
 
       - name: Render Chocolatey Step Summary
         if: always()
