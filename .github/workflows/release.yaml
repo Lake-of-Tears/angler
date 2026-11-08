@@ -217,14 +217,28 @@ jobs:
     name: "Stage 3: Chocolatey Package & Publish"
     needs: [inspect, publish]
     runs-on: windows-latest
-    if: ${{ secrets.CHOCOLATEY_API_KEY != '' }}
     steps:
+      - name: Check Chocolatey Token
+        id: check_token
+        shell: bash
+        env:
+          CHOCO_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+        run: |
+          if [ -z "$CHOCO_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "CHOCOLATEY_API_KEY secret not configured. Skipping Chocolatey package and publish."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout code
+        if: steps.check_token.outputs.configured == 'true'
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.inspect.outputs.target_tag }}
 
       - name: Download Windows Release Archive & Extract Checksum
+        if: steps.check_token.outputs.configured == 'true'
         shell: bash
         run: |
           TARGET_TAG="${{ needs.inspect.outputs.target_tag }}"
@@ -238,6 +252,7 @@ jobs:
           echo "clean_ver=$CLEAN_VER" >> "$GITHUB_ENV"
 
       - name: Generate Chocolatey Manifests
+        if: steps.check_token.outputs.configured == 'true'
         shell: pwsh
         run: |
           $ver = $env:clean_ver
@@ -287,6 +302,7 @@ jobs:
           "@ | Set-Content -Path "choco\tools\chocolateyinstall.ps1"
 
       - name: Pack and Push to Chocolatey
+        if: steps.check_token.outputs.configured == 'true'
         shell: pwsh
         env:
           CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
