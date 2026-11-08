@@ -128,18 +128,18 @@ func ErrorTypeName(code int) string {
 }
 
 // ValidateFormat checks whether the requested output format is supported.
-func ValidateFormat(format string, allowCSV bool) error {
+func ValidateFormat(format string, allowTabular bool) error {
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case FormatTable, FormatJSON, FormatYAML, FormatTOON:
 		return nil
-	case FormatCSV:
-		if allowCSV {
+	case FormatCSV, FormatNDJSON:
+		if allowTabular {
 			return nil
 		}
 		return NewUsageError(fmt.Errorf("invalid output format %q (supported: table, json, yaml, toon)", format))
 	default:
-		if allowCSV {
-			return NewUsageError(fmt.Errorf("invalid output format %q (supported: table, json, yaml, toon, csv)", format))
+		if allowTabular {
+			return NewUsageError(fmt.Errorf("invalid output format %q (supported: table, json, yaml, toon, csv, ndjson)", format))
 		}
 		return NewUsageError(fmt.Errorf("invalid output format %q (supported: table, json, yaml, toon)", format))
 	}
@@ -241,6 +241,42 @@ func RenderCSV(headers []string, rows [][]string) error {
 	}
 	_, err := fmt.Fprint(OutWriter, buf.String())
 	return err
+}
+
+// RenderNDJSON writes rows as newline-delimited JSON objects to OutWriter.
+func RenderNDJSON(headers []string, rows [][]interface{}) error {
+	for _, row := range rows {
+		record := make(map[string]interface{}, len(headers))
+		for i, h := range headers {
+			if i < len(row) {
+				record[h] = row[i]
+			} else {
+				record[h] = nil
+			}
+		}
+		data, err := json.Marshal(record)
+		if err != nil {
+			return fmt.Errorf("failed to encode NDJSON record: %w", err)
+		}
+		if _, err := fmt.Fprintln(OutWriter, string(data)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RenderNDJSONObjects writes objects as newline-delimited JSON objects to OutWriter.
+func RenderNDJSONObjects(records []map[string]interface{}) error {
+	for _, record := range records {
+		data, err := json.Marshal(record)
+		if err != nil {
+			return fmt.Errorf("failed to encode NDJSON record: %w", err)
+		}
+		if _, err := fmt.Fprintln(OutWriter, string(data)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // EmitError writes the error to ErrWriter (structured in json/yaml/toon mode, styled text in table mode)

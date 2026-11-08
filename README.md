@@ -109,15 +109,29 @@ angler status
 angler ping
 ```
 
-### 3. Cast a Query
+### 3. Cast a Query (SQL Statement Execution)
 
-Run DuckDB queries directly over remote Parquet datasets:
+Run DuckDB queries directly over remote Parquet datasets using the unified SQL suite:
 
 ```bash
-angler cast "SELECT * FROM lake.telemetry LIMIT 10"
+# Direct SQL execution (or use alias: angler cast / angler query)
+angler sql "SELECT * FROM lake.telemetry LIMIT 10"
 
-# Output in JSON or CSV
-angler query -e "SELECT department, count(*) FROM employees GROUP BY 1" --format csv
+# Execute from file with NDJSON or CSV streaming output
+angler sql exec -f queries/report.sql --format csv
+angler sql exec -f queries/metrics.sql --format ndjson
+
+# Explain query execution plans
+angler sql explain "SELECT department, count(*) FROM employees GROUP BY 1"
+
+# Generate SQL from natural language prompts
+angler sql generate "Find top 10 users by spend last month" --run
+
+# Diagnose and fix broken SQL queries
+angler sql fix "SELECT empid FROM emps" --error "column empid not found"
+
+# View recent statement history
+angler sql history --limit 10
 ```
 
 ### 4. Transmit a Sonar Pulse (AI RAG)
@@ -144,7 +158,7 @@ angler catalog ls
 | :--- | :--- | :--- |
 | `angler bundle` | `angler lab` | Develop, validate, deploy, and manage Lake Asset Bundles (LABs) |
 | `angler status` | `angler ping` | Check cluster connectivity and service health |
-| `angler query` | `angler cast` | Execute SQL queries (table, JSON, YAML, TOON, or CSV output) |
+| `angler sql` | `angler query`, `angler cast` | Unified SQL execution, query plans, history, and AI assistance |
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
 | `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
 | `angler tool-defs` | `angler schema` | Export LLM tool/function schemas (Gemini, OpenAI, OpenAPI 3.1) |
