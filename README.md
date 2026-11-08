@@ -288,7 +288,22 @@ contexts:
   production:
     endpoint: https://lake.myorg.internal
     token: eyJhbGciOi...
+    workspace: analytics
     timeout: 60
+```
+
+### Multi-Tenant Workspace Scoping
+
+Scope all queries, catalog browsing, and commands to a specific tenant workspace:
+
+```bash
+# Global persistent flag
+angler catalog list --workspace analytics
+angler query "SELECT * FROM gold.users" -w marketing
+
+# Or configure workspace directly on a context profile
+angler context set production --endpoint https://lake.myorg.internal --workspace analytics
+angler context use production
 ```
 
 ### Environment Variables
@@ -299,6 +314,8 @@ For headless CI/CD environments, `angler` respects environment variables:
 | :--- | :--- |
 | `ANGLER_ENDPOINT` | Override the active API endpoint |
 | `ANGLER_TOKEN` | API bearer token or service account key |
+| `ANGLER_WORKSPACE` / `LOT_WORKSPACE` | Target workspace slug, name, or UUID |
+| `ANGLER_WORKSPACE_ID` / `LOT_WORKSPACE_ID` | Explicit target workspace ID |
 | `ANGLER_CONTEXT` | Select active profile context name |
 | `ANGLER_EMAIL` | Account email for non-interactive `angler auth login` |
 | `ANGLER_PASSWORD` | Account password for non-interactive `angler auth login` |
