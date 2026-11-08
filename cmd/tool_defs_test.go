@@ -79,6 +79,8 @@ func executeCLIForTest(t *testing.T, stdoutTTY bool, args ...string) (string, st
 	adminGeminiModel = ""
 	adminGeminiKey = ""
 	adminForce = false
+	mcpClient = "claude"
+	mcpConfigPath = ""
 
 	defer func() {
 		ui.OutWriter = os.Stdout

@@ -334,6 +334,30 @@ angler admin sessions list
 angler admin sessions revoke sess-123 --force
 ```
 
+### 12. Model Context Protocol (MCP) Server Mode (`angler mcp`)
+
+Run Lake of Tears as a native stdio MCP server for Claude Desktop, Google Antigravity, Cursor, and Continue:
+
+```bash
+# Start MCP server over standard I/O (stdio)
+angler mcp serve
+
+# Auto-configure Claude Desktop
+angler mcp install --client claude
+
+# Auto-configure Google Antigravity or Cursor
+angler mcp install --client antigravity
+angler mcp install --client cursor
+```
+
+**Exposed MCP Tools:**
+- `angler_sql_query`: Execute DuckDB queries over lakehouse tables and views.
+- `angler_catalog_inspect`: Browse Unity-style catalogs, schemas, tables, and column metadata.
+- `angler_fs_browse`: Browse files and object store paths in Lake of Tears volumes.
+- `angler_workspace_read_notebook`: Fetch notebook cells, scripts, and workspace files.
+- `angler_jobs_trigger`: Run scheduled pipelines and DAG tasks.
+- `angler_ai_genie`: Query Lake of Tears' internal Genie conversational AI and vector embeddings.
+
 ---
 
 ## Command Reference
@@ -351,6 +375,7 @@ angler admin sessions revoke sess-123 --force
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
 | `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
 | `angler tool-defs` | `angler schema` | Export LLM tool/function schemas (Gemini, OpenAI, OpenAPI 3.1) |
+| `angler mcp` | — | Model Context Protocol (MCP) stdio server and AI IDE auto-configuration |
 | `angler up` | `angler launch` | Spin up local Lake of Tears Docker stack |
 | `angler down` | `angler dock` | Stop and safely dock running containers |
 | `angler auth` | — | Log in, log out, and check authentication status |
