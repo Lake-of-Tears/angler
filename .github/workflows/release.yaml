@@ -3,8 +3,12 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
+      source_tag:
+        description: 'Source Git Tag / CI Build Tag to build from (e.g. v0.1.0-build.12-92d0a84 or v0.1.0)'
+        required: true
+        type: string
       release_tag:
-        description: 'Release Tag to build & publish (e.g. v0.2.0)'
+        description: 'Official Release Tag to publish (e.g. v0.2.0)'
         required: true
         type: string
         default: 'v0.2.0'
@@ -24,24 +28,44 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       latest_release: ${{ steps.check_git.outputs.latest_release }}
+      source_tag: ${{ steps.check_git.outputs.source_tag }}
       target_tag: ${{ steps.check_git.outputs.target_tag }}
+      source_sha: ${{ steps.check_git.outputs.source_sha }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Inspect Git State & Latest Release
+      - name: Inspect Git State & Tags
         id: check_git
         run: |
-          LATEST_RELEASE=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+          git fetch --tags --force
+
+          # 1. Detect latest official semver release tag (excluding CI build tags)
+          LATEST_RELEASE=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -v 'build' | sort -V | tail -n 1)
+          if [ -z "$LATEST_RELEASE" ]; then
+            LATEST_RELEASE=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+          fi
           if [ -z "$LATEST_RELEASE" ]; then
             LATEST_RELEASE="None"
           fi
           echo "latest_release=$LATEST_RELEASE" >> "$GITHUB_OUTPUT"
 
+          # 2. Validate Source Tag
+          SOURCE_TAG="${{ inputs.source_tag }}"
+          if ! git rev-parse "refs/tags/${SOURCE_TAG}" >/dev/null 2>&1 && ! git rev-parse "${SOURCE_TAG}" >/dev/null 2>&1; then
+            echo "::error::Source tag '${SOURCE_TAG}' does not exist on remote or locally."
+            echo "Available tags:"
+            git tag -l --sort=-creatordate | head -n 10
+            exit 1
+          fi
+          SOURCE_SHA=$(git rev-parse "${SOURCE_TAG}^{commit}")
+          echo "source_tag=$SOURCE_TAG" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+          # 3. Format Target Release Tag
           RAW_TAG="${{ inputs.release_tag }}"
-          # Automatically prepend 'v' if omitted
           if [[ ! "$RAW_TAG" =~ ^v ]]; then
             TARGET_TAG="v${RAW_TAG}"
           else
@@ -49,9 +73,13 @@ jobs:
           fi
           echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
 
+          RECENT_TAGS=$(git tag -l --sort=-creatordate | head -n 5 | paste -sd ", " -)
+
           echo "=========================================="
-          echo "📌 Current Latest Release: $LATEST_RELEASE"
-          echo "🎯 Target Release To Build: $TARGET_TAG"
+          echo "📌 Current Latest Official Release: $LATEST_RELEASE"
+          echo "🏷️ Recent Git Tags on Remote:       $RECENT_TAGS"
+          echo "🔍 Source Tag To Build From:        $SOURCE_TAG (${SOURCE_SHA:0:7})"
+          echo "🎯 Official Release To Publish:     $TARGET_TAG"
           echo "=========================================="
 
   publish:
@@ -64,23 +92,38 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Tag and Prepare Repository
+      - name: Prepare and Tag Target Commit
         run: |
+          git fetch --tags --force
+          SOURCE_TAG="${{ needs.inspect.outputs.source_tag }}"
           TARGET_TAG="${{ needs.inspect.outputs.target_tag }}"
+          SOURCE_SHA="${{ needs.inspect.outputs.source_sha }}"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if git rev-parse "$TARGET_TAG" >/dev/null 2>&1; then
-            echo "Tag $TARGET_TAG exists locally"
-          elif git ls-remote --tags origin "$TARGET_TAG" | grep -q "$TARGET_TAG"; then
-            echo "Tag $TARGET_TAG exists on remote, fetching..."
-            git fetch origin "refs/tags/${TARGET_TAG}:refs/tags/${TARGET_TAG}"
+          echo "Checking out source commit $SOURCE_SHA ($SOURCE_TAG)..."
+          git checkout "$SOURCE_SHA"
+
+          # If target tag already exists, ensure it points to the requested commit
+          if git rev-parse "refs/tags/${TARGET_TAG}" >/dev/null 2>&1; then
+            EXISTING_TAG_SHA=$(git rev-parse "${TARGET_TAG}^{commit}")
+            if [ "$EXISTING_TAG_SHA" != "$SOURCE_SHA" ]; then
+              echo "::warning::Tag $TARGET_TAG already points to a different commit ($EXISTING_TAG_SHA vs $SOURCE_SHA). Re-tagging..."
+              git tag -d "$TARGET_TAG"
+              git push origin ":refs/tags/${TARGET_TAG}" || true
+              git tag -a "$TARGET_TAG" -m "Production release $TARGET_TAG from $SOURCE_TAG"
+              git push origin "$TARGET_TAG"
+            else
+              echo "Tag $TARGET_TAG already points to $SOURCE_SHA"
+            fi
           else
-            echo "Creating and pushing new release tag $TARGET_TAG"
-            git tag -a "$TARGET_TAG" -m "Production release $TARGET_TAG"
+            echo "Creating and pushing new release tag $TARGET_TAG at $SOURCE_SHA..."
+            git tag -a "$TARGET_TAG" -m "Production release $TARGET_TAG from $SOURCE_TAG"
             git push origin "$TARGET_TAG"
           fi
 
+          # Checkout the exact release tag for GoReleaser
           git checkout "$TARGET_TAG"
 
       - name: Set up Go
@@ -103,8 +146,10 @@ jobs:
         if: always()
         run: |
           TARGET_TAG="${{ needs.inspect.outputs.target_tag }}"
+          SOURCE_TAG="${{ needs.inspect.outputs.source_tag }}"
+          SOURCE_SHA="${{ needs.inspect.outputs.source_sha }}"
           LATEST_RELEASE="${{ needs.inspect.outputs.latest_release }}"
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          SHORT_SHA="${SOURCE_SHA:0:7}"
 
           cat << EOF >> "$GITHUB_STEP_SUMMARY"
           # 🎣 Angler CLI — Production Release Summary
@@ -112,10 +157,11 @@ jobs:
           ### 🏷️ Release Metadata
           | Parameter | Value |
           |---|---|
-          | **Published Tag** | \`$TARGET_TAG\` |
-          | **Previous Release** | \`$LATEST_RELEASE\` |
-          | **Target Commit** | [\`${SHORT_SHA}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) |
-          | **Triggered By** | \`${{ github.actor }}\` via manual workflow dispatch |
+          | **Official Release Tag** | \`$TARGET_TAG\` |
+          | **Built From Tag** | \`$SOURCE_TAG\` |
+          | **Previous Official Release** | \`$LATEST_RELEASE\` |
+          | **Target Commit** | [\`${SHORT_SHA}\`](${{ github.server_url }}/${{ github.repository }}/commit/${SOURCE_SHA}) |
+          | **Triggered By** | \`${{ github.actor }}\` via manual dispatch |
           | **Pre-release** | \`${{ inputs.prerelease }}\` |
           | **Homebrew Tap** | [\`Lake-of-Tears/homebrew-tap\`](https://github.com/Lake-of-Tears/homebrew-tap) |
           | **GitHub Release** | [View Release on GitHub](${{ github.server_url }}/${{ github.repository }}/releases/tag/${TARGET_TAG}) |
