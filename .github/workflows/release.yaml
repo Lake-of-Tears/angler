@@ -352,6 +352,7 @@ jobs:
               <projectUrl>https://thelakeoftears.com</projectUrl>
               <projectSourceUrl>https://github.com/Lake-of-Tears/angler</projectSourceUrl>
               <packageSourceUrl>https://github.com/Lake-of-Tears/angler</packageSourceUrl>
+              <iconUrl>https://thelakeoftears.com/assets/logo.png</iconUrl>
               <docsUrl>https://github.com/Lake-of-Tears/angler#readme</docsUrl>
               <bugTrackerUrl>https://github.com/Lake-of-Tears/angler/issues</bugTrackerUrl>
               <licenseUrl>https://github.com/Lake-of-Tears/angler/blob/main/LICENSE</licenseUrl>
