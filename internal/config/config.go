@@ -17,10 +17,12 @@ const (
 )
 
 type Context struct {
-	Endpoint string `yaml:"endpoint" mapstructure:"endpoint"`
-	Token    string `yaml:"token" mapstructure:"token"`
-	Email    string `yaml:"email" mapstructure:"email"`
-	Timeout  int    `yaml:"timeout" mapstructure:"timeout"`
+	Endpoint    string `yaml:"endpoint" mapstructure:"endpoint"`
+	Token       string `yaml:"token" mapstructure:"token"`
+	Email       string `yaml:"email,omitempty" mapstructure:"email,omitempty"`
+	Timeout     int    `yaml:"timeout" mapstructure:"timeout"`
+	Workspace   string `yaml:"workspace,omitempty" mapstructure:"workspace,omitempty"`
+	WorkspaceID string `yaml:"workspace_id,omitempty" mapstructure:"workspace_id,omitempty"`
 }
 
 type Config struct {
@@ -130,6 +132,16 @@ func (c *Config) GetActiveContext(overrideContext string) Context {
 	}
 	if envToken := os.Getenv("ANGLER_TOKEN"); envToken != "" {
 		ctx.Token = envToken
+	}
+	if envWorkspace := os.Getenv("ANGLER_WORKSPACE"); envWorkspace != "" {
+		ctx.Workspace = envWorkspace
+	} else if envLotWorkspace := os.Getenv("LOT_WORKSPACE"); envLotWorkspace != "" {
+		ctx.Workspace = envLotWorkspace
+	}
+	if envWorkspaceID := os.Getenv("ANGLER_WORKSPACE_ID"); envWorkspaceID != "" {
+		ctx.WorkspaceID = envWorkspaceID
+	} else if envLotWorkspaceID := os.Getenv("LOT_WORKSPACE_ID"); envLotWorkspaceID != "" {
+		ctx.WorkspaceID = envLotWorkspaceID
 	}
 
 	return ctx

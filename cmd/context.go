@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/Lake-of-Tears/angler/internal/config"
 	"github.com/Lake-of-Tears/angler/internal/ui"
@@ -10,11 +11,13 @@ import (
 )
 
 type ContextItem struct {
-	Name     string `json:"name" yaml:"name"`
-	Endpoint string `json:"endpoint" yaml:"endpoint"`
-	Email    string `json:"email,omitempty" yaml:"email,omitempty"`
-	Timeout  int    `json:"timeout" yaml:"timeout"`
-	Active   bool   `json:"active" yaml:"active"`
+	Name        string `json:"name" yaml:"name"`
+	Endpoint    string `json:"endpoint" yaml:"endpoint"`
+	Workspace   string `json:"workspace,omitempty" yaml:"workspace,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"`
+	Email       string `json:"email,omitempty" yaml:"email,omitempty"`
+	Timeout     int    `json:"timeout" yaml:"timeout"`
+	Active      bool   `json:"active" yaml:"active"`
 }
 
 type ContextActionResult struct {
@@ -22,6 +25,8 @@ type ContextActionResult struct {
 	Context        string `json:"context" yaml:"context"`
 	CurrentContext string `json:"current_context" yaml:"current_context"`
 	Endpoint       string `json:"endpoint" yaml:"endpoint"`
+	Workspace      string `json:"workspace,omitempty" yaml:"workspace,omitempty"`
+	WorkspaceID    string `json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"`
 }
 
 var contextCmd = &cobra.Command{
@@ -43,11 +48,13 @@ var contextListCmd = &cobra.Command{
 		for _, name := range names {
 			c := cfg.Contexts[name]
 			items = append(items, ContextItem{
-				Name:     name,
-				Endpoint: c.Endpoint,
-				Email:    c.Email,
-				Timeout:  c.Timeout,
-				Active:   name == cfg.CurrentContext,
+				Name:        name,
+				Endpoint:    c.Endpoint,
+				Workspace:   c.Workspace,
+				WorkspaceID: c.WorkspaceID,
+				Email:       c.Email,
+				Timeout:     c.Timeout,
+				Active:      name == cfg.CurrentContext,
 			})
 		}
 
@@ -58,7 +65,18 @@ var contextListCmd = &cobra.Command{
 				if item.Active {
 					prefix = "* "
 				}
-				fmt.Fprintf(ui.OutWriter, "%s%-15s %s (user: %s)\n", prefix, item.Name, item.Endpoint, item.Email)
+				details := []string{}
+				if item.Workspace != "" {
+					details = append(details, fmt.Sprintf("workspace: %s", item.Workspace))
+				}
+				if item.Email != "" {
+					details = append(details, fmt.Sprintf("user: %s", item.Email))
+				}
+				detailsStr := ""
+				if len(details) > 0 {
+					detailsStr = fmt.Sprintf(" (%s)", strings.Join(details, ", "))
+				}
+				fmt.Fprintf(ui.OutWriter, "%s%-15s %s%s\n", prefix, item.Name, item.Endpoint, detailsStr)
 			}
 		})
 	},
@@ -94,7 +112,9 @@ var contextUseCmd = &cobra.Command{
 }
 
 var (
-	newEndpoint string
+	newEndpoint    string
+	newWorkspace   string
+	newWorkspaceID string
 )
 
 var contextSetCmd = &cobra.Command{
@@ -107,6 +127,12 @@ var contextSetCmd = &cobra.Command{
 
 		if newEndpoint != "" {
 			current.Endpoint = newEndpoint
+		}
+		if cmd.Flags().Changed("workspace") {
+			current.Workspace = newWorkspace
+		}
+		if cmd.Flags().Changed("workspace-id") {
+			current.WorkspaceID = newWorkspaceID
 		}
 		if current.Endpoint == "" {
 			current.Endpoint = config.DefaultEndpoint
@@ -125,16 +151,24 @@ var contextSetCmd = &cobra.Command{
 			Context:        name,
 			CurrentContext: cfg.CurrentContext,
 			Endpoint:       current.Endpoint,
+			Workspace:      current.Workspace,
+			WorkspaceID:    current.WorkspaceID,
 		}
 
 		return ui.RenderOutput(result, func() {
-			ui.PrintSuccess("Saved context %q with endpoint %s.", name, current.Endpoint)
+			wsMsg := ""
+			if current.Workspace != "" {
+				wsMsg = fmt.Sprintf(" (workspace: %s)", current.Workspace)
+			}
+			ui.PrintSuccess("Saved context %q with endpoint %s%s.", name, current.Endpoint, wsMsg)
 		})
 	},
 }
 
 func init() {
 	contextSetCmd.Flags().StringVarP(&newEndpoint, "endpoint", "e", "", "API endpoint URL")
+	contextSetCmd.Flags().StringVarP(&newWorkspace, "workspace", "w", "", "workspace slug or name")
+	contextSetCmd.Flags().StringVar(&newWorkspaceID, "workspace-id", "", "workspace ID or UUID")
 	contextCmd.AddCommand(contextListCmd)
 	contextCmd.AddCommand(contextUseCmd)
 	contextCmd.AddCommand(contextSetCmd)

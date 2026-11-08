@@ -13,9 +13,11 @@ import (
 )
 
 type Client struct {
-	Endpoint   string
-	Token      string
-	HTTPClient *http.Client
+	Endpoint    string
+	Token       string
+	Workspace   string
+	WorkspaceID string
+	HTTPClient  *http.Client
 }
 
 func NewClient(ctx config.Context) *Client {
@@ -25,12 +27,30 @@ func NewClient(ctx config.Context) *Client {
 	}
 
 	return &Client{
-		Endpoint: ctx.Endpoint,
-		Token:    ctx.Token,
+		Endpoint:    ctx.Endpoint,
+		Token:       ctx.Token,
+		Workspace:   ctx.Workspace,
+		WorkspaceID: ctx.WorkspaceID,
 		HTTPClient: &http.Client{
 			Timeout: timeout,
 		},
 	}
+}
+
+func isUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, r := range s {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if r != '-' {
+				return false
+			}
+		} else if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *Client) newRequest(method, path string, body interface{}) (*http.Request, error) {
@@ -51,7 +71,24 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "angler-cli")
-	req.Header.Set("X-Workspace-Slug", "default")
+
+	wsSlug := c.Workspace
+	wsID := c.WorkspaceID
+
+	if wsID == "" && isUUID(wsSlug) {
+		wsID = wsSlug
+	}
+
+	if wsSlug != "" {
+		req.Header.Set("X-Workspace-Slug", wsSlug)
+	} else {
+		req.Header.Set("X-Workspace-Slug", "default")
+	}
+
+	if wsID != "" {
+		req.Header.Set("X-Workspace-Id", wsID)
+	}
+
 	if c.Token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
 	}

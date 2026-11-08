@@ -123,6 +123,12 @@ Examples:
 
 		var targetWorkspace *client.Workspace
 		wsInput := strings.TrimSpace(tokenWorkspace)
+		if wsInput == "" {
+			wsInput = strings.TrimSpace(workspaceFlag)
+		}
+		if wsInput == "" {
+			wsInput = strings.TrimSpace(getActiveContext().Workspace)
+		}
 
 		if wsInput != "" {
 			for i := range workspaces {
