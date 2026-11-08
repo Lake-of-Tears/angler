@@ -178,11 +178,12 @@ jobs:
           |---|---|---|
           | **macOS / Linux** | **Homebrew Tap** | [\`Lake-of-Tears/homebrew-tap\`](https://github.com/Lake-of-Tears/homebrew-tap) |
           | **Windows** | **Scoop Bucket** | [\`Lake-of-Tears/scoop-bucket\`](https://github.com/Lake-of-Tears/scoop-bucket) |
+          | **Windows** | **Chocolatey** | [\`angler\` package](https://community.chocolatey.org/packages/angler) |
           | **Debian / Ubuntu** | **Debian Package** | \`angler_${CLEAN_VER}_linux_amd64.deb\` / \`arm64.deb\` |
           | **RedHat / Fedora** | **RPM Package** | \`angler_${CLEAN_VER}_linux_amd64.rpm\` / \`arm64.rpm\` |
           | **macOS Binaries** | Tarball | \`angler_${CLEAN_VER}_darwin_arm64.tar.gz\` / \`amd64.tar.gz\` |
           | **Linux Binaries** | Tarball | \`angler_${CLEAN_VER}_linux_arm64.tar.gz\` / \`amd64.tar.gz\` |
-          | **Windows Binaries** | Zip Archive | \`angler_${CLEAN_VER}_windows_amd64.zip\` / \`arm64.zip\` |
+          | **Windows Binaries** | Zip Archive / NuGet | \`angler_${CLEAN_VER}_windows_amd64.zip\` / \`arm64.zip\` / \`angler.${CLEAN_VER}.nupkg\` |
           | **Checksums** | SHA-256 | \`checksums.txt\` |
 
           ### 🚀 How to Install or Upgrade
@@ -199,6 +200,13 @@ jobs:
           \`\`\`powershell
           scoop bucket add lake-of-tears https://github.com/Lake-of-Tears/scoop-bucket
           scoop install angler
+          \`\`\`
+
+          #### Windows (Chocolatey)
+          \`\`\`powershell
+          choco install angler
+          # Or upgrade:
+          choco upgrade angler
           \`\`\`
 
           #### Debian / Ubuntu (.deb)
@@ -225,20 +233,19 @@ jobs:
           CHOCO_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
         run: |
           if [ -z "$CHOCO_KEY" ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "CHOCOLATEY_API_KEY secret not configured. Skipping Chocolatey package and publish."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            echo "CHOCOLATEY_API_KEY secret not configured. 'choco push' will be skipped."
           else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+            echo "CHOCOLATEY_API_KEY secret is configured."
           fi
 
       - name: Checkout code
-        if: steps.check_token.outputs.configured == 'true'
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.inspect.outputs.target_tag }}
 
       - name: Download Windows Release Archive & Extract Checksum
-        if: steps.check_token.outputs.configured == 'true'
         shell: bash
         run: |
           TARGET_TAG="${{ needs.inspect.outputs.target_tag }}"
@@ -248,11 +255,16 @@ jobs:
           curl -sSL "https://github.com/Lake-of-Tears/angler/releases/download/${TARGET_TAG}/checksums.txt" -o checksums.txt
           SHA256_64=$(grep "angler_${CLEAN_VER}_windows_amd64.zip" checksums.txt | awk '{print $1}')
 
+          if [ -z "$SHA256_64" ]; then
+            echo "::error::Could not find SHA-256 checksum for angler_${CLEAN_VER}_windows_amd64.zip in checksums.txt"
+            exit 1
+          fi
+
           echo "sha256_64=$SHA256_64" >> "$GITHUB_ENV"
           echo "clean_ver=$CLEAN_VER" >> "$GITHUB_ENV"
+          echo "Windows x64 SHA-256: $SHA256_64"
 
       - name: Generate Chocolatey Manifests
-        if: steps.check_token.outputs.configured == 'true'
         shell: pwsh
         run: |
           $ver = $env:clean_ver
@@ -261,7 +273,41 @@ jobs:
 
           New-Item -ItemType Directory -Force -Path "choco\tools" | Out-Null
 
-          # Generate nuspec
+          # CPR0006: Embed repository LICENSE
+          Copy-Item -Path "LICENSE" -Destination "choco\tools\LICENSE.txt" -Force
+
+          # CPR0005: Generate VERIFICATION.txt for remote binary verification
+          @"
+          VERIFICATION
+          Verification is intended to assist the Chocolatey moderators and community
+          in verifying that this package's contents are trustworthy and untampered with.
+
+          Package Name: angler
+          Version: $ver
+
+          1. Upstream Official Release Archive:
+             URL: https://github.com/Lake-of-Tears/angler/releases/download/$tag/angler_${ver}_windows_amd64.zip
+
+          2. Checksum Verification Source:
+             Official SHA-256 checksums are published in the release checksums file:
+             URL: https://github.com/Lake-of-Tears/angler/releases/download/$tag/checksums.txt
+
+          3. Expected SHA-256 Hash:
+             File: angler_${ver}_windows_amd64.zip
+             SHA-256: $sha64
+
+          4. Integrity Verification Instructions:
+             To independently verify the downloaded binary archive matches upstream:
+
+             PowerShell:
+               Invoke-WebRequest -Uri "https://github.com/Lake-of-Tears/angler/releases/download/$tag/angler_${ver}_windows_amd64.zip" -OutFile "angler_${ver}_windows_amd64.zip"
+               (Get-FileHash .\angler_${ver}_windows_amd64.zip -Algorithm SHA256).Hash -eq "$sha64"
+
+             Command Prompt (cmd.exe):
+               certutil -hashfile angler_${ver}_windows_amd64.zip SHA256
+          "@ | Set-Content -Path "choco\tools\VERIFICATION.txt"
+
+          # Generate nuspec with full CPV metadata compliance
           @"
           <?xml version="1.0" encoding="utf-8"?>
           <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
@@ -270,13 +316,18 @@ jobs:
               <version>$ver</version>
               <title>Angler CLI (Lake of Tears)</title>
               <authors>Lake of Tears Team</authors>
+              <owners>Lake-of-Tears</owners>
               <projectUrl>https://thelakeoftears.com</projectUrl>
+              <projectSourceUrl>https://github.com/Lake-of-Tears/angler</projectSourceUrl>
+              <packageSourceUrl>https://github.com/Lake-of-Tears/angler</packageSourceUrl>
+              <docsUrl>https://github.com/Lake-of-Tears/angler#readme</docsUrl>
+              <bugTrackerUrl>https://github.com/Lake-of-Tears/angler/issues</bugTrackerUrl>
               <licenseUrl>https://github.com/Lake-of-Tears/angler/blob/main/LICENSE</licenseUrl>
               <requireLicenseAcceptance>false</requireLicenseAcceptance>
-              <description>The official CLI for Lake of Tears — cast queries, launch clusters, inspect catalogs, and reel in data.</description>
+              <description>The official CLI for Lake of Tears — cast queries, launch clusters, inspect catalogs, and reel in data. Built for modern high-performance cloud data lakes with DuckDB over S3.</description>
               <summary>Lake of Tears CLI: query DuckDB over S3, manage clusters, and execute AI queries.</summary>
               <tags>lake-of-tears angler datalakehouse duckdb s3 cli</tags>
-              <packageSourceUrl>https://github.com/Lake-of-Tears/angler</packageSourceUrl>
+              <releaseNotes>https://github.com/Lake-of-Tears/angler/releases/tag/$tag</releaseNotes>
             </metadata>
             <files>
               <file src="tools\**" target="tools" />
@@ -284,9 +335,14 @@ jobs:
           </package>
           "@ | Set-Content -Path "choco\angler.nuspec"
 
-          # Generate chocolateyinstall.ps1
+          # Generate chocolateyinstall.ps1 with 64-bit architecture guard
           @"
           `$ErrorActionPreference = 'Stop'
+
+          if (-not (Get-ProcessorBits 64)) {
+            throw "The angler package is only available for 64-bit (x64) Windows architectures."
+          }
+
           `$toolsDir = "`$(Split-Path -parent `$MyInvocation.MyCommand.Definition)"
           `$url64 = "https://github.com/Lake-of-Tears/angler/releases/download/$tag/angler_${ver}_windows_amd64.zip"
 
@@ -301,12 +357,79 @@ jobs:
           Install-ChocolateyZipPackage @packageArgs
           "@ | Set-Content -Path "choco\tools\chocolateyinstall.ps1"
 
-      - name: Pack and Push to Chocolatey
-        if: steps.check_token.outputs.configured == 'true'
+      - name: Pack Chocolatey Package
+        shell: pwsh
+        run: |
+          Set-Location choco
+          choco pack angler.nuspec
+          if (-not (Test-Path "angler.$($env:clean_ver).nupkg")) {
+            throw "Expected package angler.$($env:clean_ver).nupkg was not generated."
+          }
+
+      - name: Upload Chocolatey Package to Workflow Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chocolatey-package-${{ env.clean_ver }}
+          path: choco/angler.*.nupkg
+          if-no-files-found: error
+
+      - name: Upload Chocolatey Package to GitHub Release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET_TAG="${{ needs.inspect.outputs.target_tag }}"
+          echo "Uploading Chocolatey package to GitHub Release ${TARGET_TAG}..."
+          gh release upload "${TARGET_TAG}" choco/angler.*.nupkg --clobber
+
+      - name: Push to Chocolatey Community Repository
+        if: steps.check_token.outputs.has_token == 'true' && !inputs.prerelease
         shell: pwsh
         env:
           CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
         run: |
           Set-Location choco
-          choco pack angler.nuspec
           choco push "angler.$($env:clean_ver).nupkg" --api-key $env:CHOCOLATEY_API_KEY --source https://push.chocolatey.org/
+
+      - name: Render Chocolatey Step Summary
+        if: always()
+        shell: pwsh
+        run: |
+          $ver = $env:clean_ver
+          $tag = "${{ needs.inspect.outputs.target_tag }}"
+          $sha64 = $env:sha256_64
+          $hasToken = "${{ steps.check_token.outputs.has_token }}"
+          $isPrerelease = "${{ inputs.prerelease }}"
+
+          if ($hasToken -eq 'true' -and $isPrerelease -ne 'true') {
+            $pushStatus = "✅ Published to [Chocolatey Community Repository](https://community.chocolatey.org/packages/angler)"
+          } elseif ($isPrerelease -eq 'true') {
+            $pushStatus = "⏭️ Skipped push (pre-release run: prerelease = true)"
+          } else {
+            $pushStatus = "⚠️ Skipped push (CHOCOLATEY_API_KEY secret not configured)"
+          }
+
+          @"
+
+          ## 🍫 Chocolatey Packaging & Moderation (CPR) Summary
+
+          | Parameter | Value |
+          |---|---|
+          | **Package ID** | \`angler\` |
+          | **Version** | \`$ver\` |
+          | **Architecture** | 64-bit Windows (x64) |
+          | **Archive Source** | [\`angler_${ver}_windows_amd64.zip\`](https://github.com/Lake-of-Tears/angler/releases/download/$tag/angler_${ver}_windows_amd64.zip) |
+          | **SHA-256 Checksum** | \`$sha64\` |
+          | **CPR0005 (VERIFICATION.txt)** | Embedded in \`tools/VERIFICATION.txt\` |
+          | **CPR0006 (LICENSE.txt)** | Embedded in \`tools/LICENSE.txt\` |
+          | **Publish Status** | $pushStatus |
+
+          ### 📦 Installation
+          \`\`\`powershell
+          # Install from Chocolatey Community Repository:
+          choco install angler --version $ver
+
+          # Or install from local .nupkg file:
+          choco install angler -s .
+          \`\`\`
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
