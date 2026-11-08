@@ -133,12 +133,14 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           BUILD_RESULT: ${{ needs.build.result }}
         run: |
-          # 1. Compute standardized build tag
+          # 1. Compute standardized build tag from the latest clean semantic release tag
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+          LATEST_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
           if [ -z "$LATEST_TAG" ]; then
             LATEST_TAG="v0.1.0"
           fi
+          # Guard against any trailing build suffix
+          LATEST_TAG="${LATEST_TAG%%-build.*}"
           BUILD_TAG="${LATEST_TAG}-build.${{ github.run_number }}-${SHORT_SHA}"
           echo "Generated Build Tag: $BUILD_TAG"
 
