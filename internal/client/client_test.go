@@ -171,11 +171,11 @@ func TestClientClusterTopology(t *testing.T) {
 
 func TestWorkspaceHeaderPropagation(t *testing.T) {
 	tests := []struct {
-		name          string
-		workspace     string
-		workspaceID   string
-		expectedSlug  string
-		expectedID    string
+		name         string
+		workspace    string
+		workspaceID  string
+		expectedSlug string
+		expectedID   string
 	}{
 		{
 			name:         "default workspace when none specified",
