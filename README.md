@@ -255,6 +255,32 @@ angler jobs pause telemetry_etl
 angler jobs unpause telemetry_etl
 ```
 
+### 9. Genie AI & Semantic Gateway (`angler ai`)
+
+Converse with Lake of Tears Genie AI grounded in catalog tables and schemas, stream execution steps, inspect active semantic grounding contexts, and manage table vector indexes:
+
+```bash
+# Natural language data queries and semantic reasoning (alias: angler genie)
+angler ai chat "Which tables have customer transaction data?"
+angler ai chat "Count total orders in 2026" --no-stream
+
+# Stream reasoning steps and SQL generation in real-time
+angler ai chat --stream "Analyze revenue variance between Q2 and Q3"
+
+# Inspect active workspace grounding context, schemas, and registered SQL AI functions
+angler ai context
+
+# List active table vector embeddings and indexes across workspace catalogs
+angler ai vector-index list
+angler ai vector-index search "high value customers"
+
+# Trigger vector index synchronization for a table
+angler ai vector-index sync main retail orders
+
+# Verify configured LLM credentials against the backend gateway
+angler ai test-key --model gemini-2.0-flash
+```
+
 ---
 
 ## Command Reference
@@ -267,6 +293,7 @@ angler jobs unpause telemetry_etl
 | `angler fs` | `angler storage` | Filesystem & storage management modeled after Databricks FS / Volumes |
 | `angler workspace` | `angler ws` | Manage notebooks, scripts, directories, and headless execution |
 | `angler jobs` | `angler pipelines` | Manage data pipelines, scheduled jobs, DAG runs, and task logs |
+| `angler ai` | `angler genie` | Genie conversational AI, semantic gateway, vector indexes, and LLM verification |
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
 | `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
 | `angler tool-defs` | `angler schema` | Export LLM tool/function schemas (Gemini, OpenAI, OpenAPI 3.1) |

@@ -53,12 +53,22 @@ func executeCLIForTest(t *testing.T, stdoutTTY bool, args ...string) (string, st
 	jobsTryNumber = 1
 	jobsTimeout = 10 * time.Minute
 	jobsPollInterval = 3 * time.Second
+	aiStream = false
+	aiNoStream = false
+	aiMode = "auto"
+	aiModel = ""
+	aiKey = ""
 
 	defer func() {
 		ui.OutWriter = os.Stdout
 		ui.ErrWriter = os.Stderr
 		ui.SetTTYOverrides(nil, nil)
 		rootCmd.SetArgs(nil)
+		endpoint = ""
+		token = ""
+		ctxOverride = ""
+		workspaceFlag = ""
+		workspaceIDFlag = ""
 	}()
 
 	rootCmd.SetArgs(args)
