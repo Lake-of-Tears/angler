@@ -105,12 +105,44 @@ jobs:
           SOURCE_TAG="${{ needs.inspect.outputs.source_tag }}"
           TARGET_TAG="${{ needs.inspect.outputs.target_tag }}"
           SOURCE_SHA="${{ needs.inspect.outputs.source_sha }}"
+          CLEAN_VER="${TARGET_TAG#v}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           echo "Checking out source commit $SOURCE_SHA ($SOURCE_TAG)..."
           git checkout "$SOURCE_SHA"
+
+          # Check if target release version is higher than current version in cmd/version.go
+          CURRENT_CODE_VER=$(grep -E '^\s*Version\s*=\s*' cmd/version.go | awk -F'"' '{print $2}')
+          echo "Current version in cmd/version.go: '$CURRENT_CODE_VER'"
+          echo "Target release version:            '$CLEAN_VER'"
+
+          NEEDS_BUMP=false
+          if [ "$CURRENT_CODE_VER" = "dev" ] || [ -z "$CURRENT_CODE_VER" ]; then
+            NEEDS_BUMP=true
+          elif [ "$CURRENT_CODE_VER" != "$CLEAN_VER" ]; then
+            HIGHER_VER=$(printf '%s\n%s\n' "$CURRENT_CODE_VER" "$CLEAN_VER" | sort -V | tail -n 1)
+            if [ "$HIGHER_VER" = "$CLEAN_VER" ]; then
+              NEEDS_BUMP=true
+            fi
+          fi
+
+          if [ "$NEEDS_BUMP" = "true" ]; then
+            echo "Target release v${CLEAN_VER} is higher than code version '${CURRENT_CODE_VER}'. Updating cmd/version.go..."
+            sed -i.bak -E "s/(Version\s*=\s*\")[^\"]+(\")/\1${CLEAN_VER}\2/" cmd/version.go && rm -f cmd/version.go.bak
+            git add cmd/version.go
+            git commit -m "chore(release): bump version to v${CLEAN_VER} in code [skip ci]"
+
+            echo "Pushing updated version commit to origin main..."
+            git push origin HEAD:main
+
+            # Update SOURCE_SHA so tag points to this new commit
+            SOURCE_SHA=$(git rev-parse HEAD)
+            echo "Target release commit updated to: $SOURCE_SHA"
+          else
+            echo "Version in code ('$CURRENT_CODE_VER') is already >= target release ('$CLEAN_VER'). No bump commit needed."
+          fi
 
           # If target tag already exists, ensure it points to the requested commit
           if git rev-parse "refs/tags/${TARGET_TAG}" >/dev/null 2>&1; then
