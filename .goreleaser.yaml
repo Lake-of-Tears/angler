@@ -53,6 +53,9 @@ changelog:
       - "^test:"
       - "^ci:"
 
+release:
+  replace_existing_artifacts: true
+
 brews:
   - name: angler
     repository:
