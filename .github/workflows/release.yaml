@@ -316,7 +316,7 @@ jobs:
               <version>$ver</version>
               <title>Angler CLI (Lake of Tears)</title>
               <authors>Lake of Tears Team</authors>
-              <owners>Lake-of-Tears</owners>
+              <owners>thelakeoftears</owners>
               <projectUrl>https://thelakeoftears.com</projectUrl>
               <projectSourceUrl>https://github.com/Lake-of-Tears/angler</projectSourceUrl>
               <packageSourceUrl>https://github.com/Lake-of-Tears/angler</packageSourceUrl>
