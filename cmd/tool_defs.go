@@ -103,11 +103,11 @@ type OpenAPIRespDef struct {
 }
 
 type introspectedCommand struct {
-	ToolName    string
+	ToolName     string
 	PathSegments []string
-	Summary     string
-	Description string
-	Parameters  JSONSchemaObject
+	Summary      string
+	Description  string
+	Parameters   JSONSchemaObject
 }
 
 var toolDefsCmd = &cobra.Command{

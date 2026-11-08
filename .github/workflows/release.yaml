@@ -1,27 +1,92 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag to build & publish (e.g. v0.2.0)'
+        required: true
+        type: string
+        default: 'v0.2.0'
+      prerelease:
+        description: 'Mark as Pre-release?'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
   packages: write
 
 jobs:
-  goreleaser:
+  inspect:
+    name: "Stage 1: Inspect & Prepare Release"
     runs-on: ubuntu-latest
+    outputs:
+      latest_release: ${{ steps.check_git.outputs.latest_release }}
+      target_tag: ${{ steps.check_git.outputs.target_tag }}
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Inspect Git State & Latest Release
+        id: check_git
+        run: |
+          LATEST_RELEASE=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST_RELEASE" ]; then
+            LATEST_RELEASE="None"
+          fi
+          echo "latest_release=$LATEST_RELEASE" >> "$GITHUB_OUTPUT"
+
+          RAW_TAG="${{ inputs.release_tag }}"
+          # Automatically prepend 'v' if omitted
+          if [[ ! "$RAW_TAG" =~ ^v ]]; then
+            TARGET_TAG="v${RAW_TAG}"
+          else
+            TARGET_TAG="${RAW_TAG}"
+          fi
+          echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
+
+          echo "=========================================="
+          echo "📌 Current Latest Release: $LATEST_RELEASE"
+          echo "🎯 Target Release To Build: $TARGET_TAG"
+          echo "=========================================="
+
+  publish:
+    name: "Stage 2: GoReleaser & Homebrew Tap"
+    needs: [inspect]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag and Prepare Repository
+        run: |
+          TARGET_TAG="${{ needs.inspect.outputs.target_tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse "$TARGET_TAG" >/dev/null 2>&1; then
+            echo "Tag $TARGET_TAG exists locally"
+          elif git ls-remote --tags origin "$TARGET_TAG" | grep -q "$TARGET_TAG"; then
+            echo "Tag $TARGET_TAG exists on remote, fetching..."
+            git fetch origin "refs/tags/${TARGET_TAG}:refs/tags/${TARGET_TAG}"
+          else
+            echo "Creating and pushing new release tag $TARGET_TAG"
+            git tag -a "$TARGET_TAG" -m "Production release $TARGET_TAG"
+            git push origin "$TARGET_TAG"
+          fi
+
+          git checkout "$TARGET_TAG"
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version-file: 'go.mod'
           cache: true
 
       - name: Run GoReleaser
@@ -29,8 +94,52 @@ jobs:
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --clean
+          args: release --clean ${{ inputs.prerelease && '--prerelease' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+
+      - name: Render Release Step Summary
+        if: always()
+        run: |
+          TARGET_TAG="${{ needs.inspect.outputs.target_tag }}"
+          LATEST_RELEASE="${{ needs.inspect.outputs.latest_release }}"
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+
+          cat << EOF >> "$GITHUB_STEP_SUMMARY"
+          # 🎣 Angler CLI — Production Release Summary
+
+          ### 🏷️ Release Metadata
+          | Parameter | Value |
+          |---|---|
+          | **Published Tag** | \`$TARGET_TAG\` |
+          | **Previous Release** | \`$LATEST_RELEASE\` |
+          | **Target Commit** | [\`${SHORT_SHA}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) |
+          | **Triggered By** | \`${{ github.actor }}\` via manual workflow dispatch |
+          | **Pre-release** | \`${{ inputs.prerelease }}\` |
+          | **Homebrew Tap** | [\`Lake-of-Tears/homebrew-tap\`](https://github.com/Lake-of-Tears/homebrew-tap) |
+          | **GitHub Release** | [View Release on GitHub](${{ github.server_url }}/${{ github.repository }}/releases/tag/${TARGET_TAG}) |
+
+          ### 📦 Published Artifacts & Supported Platforms
+          | Operating System | Architecture | Archive File |
+          |---|---|---|
+          | **macOS** | Apple Silicon (\`arm64\`) | \`angler_${TARGET_TAG#v}_darwin_arm64.tar.gz\` |
+          | **macOS** | Intel x86_64 (\`amd64\`) | \`angler_${TARGET_TAG#v}_darwin_amd64.tar.gz\` |
+          | **Linux** | ARM64 (\`arm64\`) | \`angler_${TARGET_TAG#v}_linux_arm64.tar.gz\` |
+          | **Linux** | x86_64 (\`amd64\`) | \`angler_${TARGET_TAG#v}_linux_amd64.tar.gz\` |
+          | **Windows** | x86_64 (\`amd64\`) | \`angler_${TARGET_TAG#v}_windows_amd64.zip\` |
+          | **Windows** | ARM64 (\`arm64\`) | \`angler_${TARGET_TAG#v}_windows_arm64.zip\` |
+          | **Integrity** | All Architectures | \`checksums.txt\` (SHA-256) |
+
+          ### 🍺 Homebrew Upgrade Instructions
+          To update your local Homebrew installation to \`$TARGET_TAG\`:
+          \`\`\`bash
+          brew update
+          brew upgrade angler
+          \`\`\`
+
+          Verify the installation:
+          \`\`\`bash
+          angler version
+          \`\`\`
+          EOF

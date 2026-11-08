@@ -315,20 +315,20 @@ type BundleDeployResponse struct {
 }
 
 type BundleListItem struct {
-	ID             string                 `json:"id"`
-	BundleName     string                 `json:"bundle_name"`
-	Target         string                 `json:"target"`
-	Status         string                 `json:"status"`
-	Version        string                 `json:"version"`
-	Description    string                 `json:"description,omitempty"`
-	GitCommitSHA   string                 `json:"git_commit_sha,omitempty"`
-	LastDeployedAt string                 `json:"last_deployed_at,omitempty"`
-	CreatedAt      string                 `json:"created_at"`
-	ResourcesMap   map[string]interface{} `json:"resources_map,omitempty"`
-	CatalogsCount  int                    `json:"catalogs_count"`
-	TablesCount    int                    `json:"tables_count"`
-	PipelinesCount int                    `json:"pipelines_count"`
-	DashboardsCount int                   `json:"dashboards_count"`
+	ID              string                 `json:"id"`
+	BundleName      string                 `json:"bundle_name"`
+	Target          string                 `json:"target"`
+	Status          string                 `json:"status"`
+	Version         string                 `json:"version"`
+	Description     string                 `json:"description,omitempty"`
+	GitCommitSHA    string                 `json:"git_commit_sha,omitempty"`
+	LastDeployedAt  string                 `json:"last_deployed_at,omitempty"`
+	CreatedAt       string                 `json:"created_at"`
+	ResourcesMap    map[string]interface{} `json:"resources_map,omitempty"`
+	CatalogsCount   int                    `json:"catalogs_count"`
+	TablesCount     int                    `json:"tables_count"`
+	PipelinesCount  int                    `json:"pipelines_count"`
+	DashboardsCount int                    `json:"dashboards_count"`
 }
 
 type BundleListResponse struct {

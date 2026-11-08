@@ -5,10 +5,18 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
 
 jobs:
-  test:
-    name: Build & Test
+  quality:
+    name: "Stage 1: Code Quality & Formatting"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -17,17 +25,191 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version-file: 'go.mod'
           cache: true
 
+      - name: Check code formatting (gofmt)
+        run: |
+          UNFORMATTED=$(gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "The following files are not properly formatted:"
+            echo "$UNFORMATTED"
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
       - name: Verify dependencies
-        run: go mod verify
+        run: |
+          go mod verify
+          git diff --exit-code go.mod go.sum
 
-      - name: Run unit tests
-        run: go test -v -race -coverprofile=coverage.txt ./...
+  test:
+    name: "Stage 2: Unit Tests & Coverage"
+    needs: [quality]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Build binary
-        run: go build -v -o bin/angler ./main.go
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
 
-      - name: Test execution
-        run: ./bin/angler version
+      - name: Run unit tests with race detector & coverage
+        run: |
+          go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Inspect coverage summary
+        run: |
+          go tool cover -func=coverage.txt | tail -n 1
+
+  build:
+    name: "Stage 3: Cross-Platform Build Validation"
+    needs: [test]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+          - os: linux
+            arch: arm64
+          - os: darwin
+            arch: arm64
+          - os: darwin
+            arch: amd64
+          - os: windows
+            arch: amd64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Compile binary (${{ matrix.os }}/${{ matrix.arch }})
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        run: |
+          EXT=""
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            EXT=".exe"
+          fi
+          go build -ldflags="-s -w -X github.com/Lake-of-Tears/angler/cmd.Version=ci-${{ github.run_number }}" -o "bin/angler_${{ matrix.os }}_${{ matrix.arch }}${EXT}" ./main.go
+
+      - name: Test binary execution (Linux amd64 runner)
+        if: matrix.os == 'linux' && matrix.arch == 'amd64'
+        run: |
+          chmod +x bin/angler_linux_amd64
+          ./bin/angler_linux_amd64 version
+          ./bin/angler_linux_amd64 --help
+
+  summary:
+    name: "Stage 4: CI Summary & Build Tag"
+    runs-on: ubuntu-latest
+    needs:
+      - quality
+      - test
+      - build
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Build Tag, Push Git Tag, and Render Summary
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          # 1. Compute standardized build tag
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+          BUILD_TAG="${LATEST_TAG}-build.${{ github.run_number }}-${SHORT_SHA}"
+          echo "Generated Build Tag: $BUILD_TAG"
+
+          # 2. Status formatting helper
+          format_status() {
+            case "$1" in
+              success) echo "✅ Passed" ;;
+              failure) echo "❌ Failed" ;;
+              cancelled) echo "⏹️ Cancelled" ;;
+              *) echo "⏭️ Skipped" ;;
+            esac
+          }
+
+          QUALITY_STATUS=$(format_status "$QUALITY_RESULT")
+          TEST_STATUS=$(format_status "$TEST_RESULT")
+          BUILD_STATUS=$(format_status "$BUILD_RESULT")
+
+          # Check if all upstream jobs succeeded
+          ALL_SUCCESS=true
+          for res in "$QUALITY_RESULT" "$TEST_RESULT" "$BUILD_RESULT"; do
+            if [ "$res" != "success" ]; then
+              ALL_SUCCESS=false
+              break
+            fi
+          done
+
+          # 3. Create and push Git tag when running on main branch push with all checks passing
+          TAG_RELEASED="ℹ️ PR / Branch Preview (Not Tagged in Git)"
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "${{ github.event_name }}" = "push" ] && [ "$ALL_SUCCESS" = "true" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            if git ls-remote --tags origin "$BUILD_TAG" | grep -q "$BUILD_TAG"; then
+              echo "Tag $BUILD_TAG already exists on remote"
+              TAG_RELEASED="✅ Tag already exists (\`$BUILD_TAG\`)"
+            else
+              git tag -a "$BUILD_TAG" -m "Automated CI build tag $BUILD_TAG from run #${{ github.run_number }}"
+              git push origin "$BUILD_TAG"
+              TAG_RELEASED="🚀 Released & Pushed to Git (\`$BUILD_TAG\`)"
+            fi
+          elif [ "$ALL_SUCCESS" != "true" ]; then
+            TAG_RELEASED="❌ CI Failed (No Tag Created)"
+          fi
+
+          # 4. Generate GitHub Step Summary Markdown
+          cat << EOF >> "$GITHUB_STEP_SUMMARY"
+          # 🎣 Angler CLI — CI Build & Validation Summary
+
+          ### 🏷️ Build Information
+          | Parameter | Value |
+          |---|---|
+          | **Build Tag** | \`$BUILD_TAG\` |
+          | **Base Release** | \`$LATEST_TAG\` |
+          | **Commit** | [\`${SHORT_SHA}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) |
+          | **Branch / Ref** | \`${{ github.ref_name }}\` |
+          | **Workflow Run** | [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+          | **Triggered By** | \`${{ github.actor }}\` via \`${{ github.event_name }}\` |
+          | **Git CI Tag** | $TAG_RELEASED |
+
+          ### 🚦 Pipeline Execution Status
+          | Stage | Job | Status | Details |
+          |---|---|:---:|---|
+          | **1. Quality** | **Code Quality & Formatting** | $QUALITY_STATUS | \`gofmt\` validation, \`go vet\`, & dependency verification |
+          | **2. Tests** | **Unit Tests & Race Detection** | $TEST_STATUS | Automated test suite execution with \`-race\` and coverage |
+          | **3. Compilation** | **Cross-Platform Compilation** | $BUILD_STATUS | Matrix build: Darwin (arm64/amd64), Linux (arm64/amd64), Windows (amd64) |
+
+          ### 🚀 Manual Production Release
+          When ready to publish an official production release to Homebrew and GitHub Releases:
+          1. Navigate to [Actions &rarr; Release](${{ github.server_url }}/${{ github.repository }}/actions/workflows/release.yaml)
+          2. Click **Run workflow**
+          3. Specify the desired release tag (e.g. \`v0.2.0\`)
+          EOF
+
+          # 5. Fail the summary step if any upstream job failed
+          if [ "$ALL_SUCCESS" != "true" ]; then
+            echo "::error::One or more upstream CI jobs failed."
+            exit 1
+          fi
