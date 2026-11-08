@@ -553,11 +553,14 @@ For headless CI/CD environments, `angler` respects environment variables:
 
 ---
 
-## Shell Autocompletion
+## Shell Autocompletion & Documentation Generator
 
-Enable interactive tab completion in your shell:
+Generate interactive tab completions and complete CLI markdown reference documentation:
 
 ```bash
+# Generate markdown documentation tree and shell completion scripts
+angler docs ./docs/reference --completions-dir ./completions
+
 # Zsh
 angler completion zsh > "${fpath[1]}/_angler"
 
@@ -566,6 +569,19 @@ angler completion bash > /etc/bash_completion.d/angler
 
 # Fish
 angler completion fish > ~/.config/fish/completions/angler.fish
+
+# PowerShell
+angler completion powershell | Out-String | Invoke-Expression
+```
+
+---
+
+## End-to-End Integration Testing
+
+Run the automated E2E test suite against an in-memory mock backend:
+
+```bash
+go test -v -race ./test/e2e/...
 ```
 
 ---

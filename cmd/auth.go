@@ -221,9 +221,7 @@ Examples:
 		}
 
 		currentCtx := cfg.Contexts[ctxName]
-		if currentCtx.Endpoint == "" {
-			currentCtx.Endpoint = c.Endpoint
-		}
+		currentCtx.Endpoint = endpointURL
 		currentCtx.Email = email
 		currentCtx.Token = resp.Token
 		cfg.Contexts[ctxName] = currentCtx

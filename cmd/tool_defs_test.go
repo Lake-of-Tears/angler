@@ -81,6 +81,8 @@ func executeCLIForTest(t *testing.T, stdoutTTY bool, args ...string) (string, st
 	adminForce = false
 	mcpClient = "claude"
 	mcpConfigPath = ""
+	docsCompletionsDir = ""
+	docsClean = true
 
 	defer func() {
 		ui.OutWriter = os.Stdout
