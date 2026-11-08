@@ -142,12 +142,31 @@ Ask questions grounded in your data using Gemini vector search:
 angler sonar "Which region had the largest revenue drop in Q3?"
 ```
 
-### 5. Inspect Catalog
+### 5. Inspect Catalog (`angler catalog`)
+
+Browse and manage Unity Catalog-style data catalogs, schemas, tables, and anomalies:
 
 ```bash
-angler net
-# or
+# List all registered catalogs (alias: angler net)
 angler catalog ls
+
+# Inspect catalog details and schemas
+angler catalog get main
+
+# Manage database schemas within a catalog
+angler catalog schemas list main
+angler catalog schemas get main default
+angler catalog schemas create main gold
+
+# Inspect tables, columns, and partition patterns
+angler catalog tables list main default
+angler catalog tables get main default users
+
+# Export full catalog manifest projection JSON
+angler catalog manifest
+
+# Run automated anomaly detection across catalog tables
+angler catalog anomalies detect --table users
 ```
 
 ### 6. Filesystem & Object Storage (`angler fs`)
