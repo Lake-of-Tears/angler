@@ -9,14 +9,14 @@ import (
 )
 
 var (
-	catDescription       string
-	catWorkspace         string
-	catPurge             bool
-	catForce             bool
-	catCascade           bool
-	catAnomalySource     string
-	catAnomalyTable      string
-	catAnomalyContam     float64
+	catDescription   string
+	catWorkspace     string
+	catPurge         bool
+	catForce         bool
+	catCascade       bool
+	catAnomalySource string
+	catAnomalyTable  string
+	catAnomalyContam float64
 )
 
 var catalogCmd = &cobra.Command{
