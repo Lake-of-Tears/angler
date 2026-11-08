@@ -22,16 +22,15 @@
 Install directly from the official Lake of Tears tap:
 
 ```bash
+# Tap and install
 brew tap Lake-of-Tears/tap
-brew trust lake-of-tears/tap
 brew install angler
-```
 
-Or in a single command:
-
-```bash
+# Or in a single command
 brew install Lake-of-Tears/tap/angler
 ```
+
+Shell completions for **Bash**, **Zsh**, and **Fish** are automatically configured during installation. See the [Homebrew Distribution Pipeline & Roadmap](docs/distribution/homebrew.md) for architecture details and upstream Homebrew Core tracking.
 
 ### Windows (Scoop)
 

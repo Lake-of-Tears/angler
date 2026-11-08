@@ -66,6 +66,8 @@ brews:
     homepage: "https://thelakeoftears.com"
     description: "The official CLI for Lake of Tears — cast queries, launch clusters, inspect catalogs, and reel in data"
     license: "MIT"
+    extra_install: |
+      generate_completions_from_executable(bin/"angler", "completion")
     test: |
       system "#{bin}/angler", "version"
 
