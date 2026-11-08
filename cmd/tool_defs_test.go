@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Lake-of-Tears/angler/internal/client"
 	"github.com/Lake-of-Tears/angler/internal/ui"
@@ -36,6 +37,15 @@ func executeCLIForTest(t *testing.T, stdoutTTY bool, args ...string) (string, st
 	includeGlobalFlags = false
 	loginEmail = ""
 	loginPassword = ""
+	wsRecursive = false
+	wsOverwrite = false
+	wsForce = false
+	wsFormat = "table"
+	wsDest = ""
+	wsKernel = "python3"
+	wsTimeout = 2 * time.Minute
+	wsSubpath = ""
+	wsSavePath = ""
 
 	defer func() {
 		ui.OutWriter = os.Stdout
