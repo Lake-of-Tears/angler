@@ -196,6 +196,34 @@ angler fs rm bronze/staging/ --recursive --force
 angler fs stats
 ```
 
+### 7. Workspace Notebooks & Directories (`angler workspace`)
+
+Interact with Lake of Tears notebooks, code directories, and interactive analytical sessions programmatically:
+
+```bash
+# List workspace items (alias: angler ws ls)
+angler workspace list
+angler workspace list analysis/ --recursive
+
+# Import notebooks or scripts (converts .py, .sql, .md into cells)
+angler workspace import ./model_training.py analysis/model_training.ipynb --format SOURCE
+
+# Export notebooks to local disk (.ipynb or extracted .py script)
+angler workspace export analysis/model_training.ipynb ./model_training.ipynb
+angler workspace export analysis/model_training.ipynb - --format SOURCE
+
+# Create directories and delete items
+angler workspace mkdirs analysis/v2/experiments
+angler workspace delete analysis/legacy_test.ipynb --force
+
+# Headless notebook execution
+angler workspace run analysis/model_training.ipynb --kernel python3
+
+# Search workspace items and inspect historical run archives
+angler workspace search "duckdb"
+angler workspace runs analysis/model_training.ipynb
+```
+
 ---
 
 ## Command Reference
@@ -206,6 +234,7 @@ angler fs stats
 | `angler status` | `angler ping` | Check cluster connectivity and service health |
 | `angler sql` | `angler query`, `angler cast` | Unified SQL execution, query plans, history, and AI assistance |
 | `angler fs` | `angler storage` | Filesystem & storage management modeled after Databricks FS / Volumes |
+| `angler workspace` | `angler ws` | Manage notebooks, scripts, directories, and headless execution |
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
 | `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
 | `angler tool-defs` | `angler schema` | Export LLM tool/function schemas (Gemini, OpenAI, OpenAPI 3.1) |
