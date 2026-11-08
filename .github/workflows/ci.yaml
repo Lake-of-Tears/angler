@@ -17,13 +17,13 @@ permissions:
 jobs:
   quality:
     name: "Stage 1: Code Quality & Formatting"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -48,13 +48,13 @@ jobs:
   test:
     name: "Stage 2: Unit Tests & Coverage"
     needs: [quality]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -70,7 +70,7 @@ jobs:
   build:
     name: "Stage 3: Cross-Platform Build Validation"
     needs: [test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
@@ -86,10 +86,10 @@ jobs:
             arch: amd64
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
           cache: true
@@ -115,7 +115,7 @@ jobs:
 
   summary:
     name: "Stage 4: CI Summary & Build Tag"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - quality
       - test
@@ -123,7 +123,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -135,7 +135,10 @@ jobs:
         run: |
           # 1. Compute standardized build tag
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+          LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.1.0"
+          fi
           BUILD_TAG="${LATEST_TAG}-build.${{ github.run_number }}-${SHORT_SHA}"
           echo "Generated Build Tag: $BUILD_TAG"
 
