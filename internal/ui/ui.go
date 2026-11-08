@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	FormatTable = "table"
-	FormatJSON  = "json"
-	FormatYAML  = "yaml"
-	FormatTOON  = "toon"
-	FormatCSV   = "csv"
+	FormatTable  = "table"
+	FormatJSON   = "json"
+	FormatYAML   = "yaml"
+	FormatTOON   = "toon"
+	FormatCSV    = "csv"
+	FormatNDJSON = "ndjson"
 )
 
 const (

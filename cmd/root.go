@@ -55,14 +55,14 @@ func configureRuntimeMode(cmd *cobra.Command) error {
 	ui.SetNonInteractive(nonInteractive || assumeYes || forceExec)
 
 	resolved := ""
-	allowCSV := cmd != nil && cmd.Name() == "query"
+	allowTabular := cmd != nil && (cmd.Name() == "sql" || cmd.Name() == "exec" || cmd.Name() == "query" || cmd.Name() == "cast")
 
 	if jsonOutput {
 		resolved = ui.FormatJSON
 	} else if outputFlag != "" {
 		resolved = strings.ToLower(strings.TrimSpace(outputFlag))
-	} else if cmd != nil && cmd.Name() == "query" && cmd.Flags().Changed("format") {
-		resolved = strings.ToLower(strings.TrimSpace(outputFormat))
+	} else if allowTabular && cmd.Flags().Lookup("format") != nil && cmd.Flags().Changed("format") {
+		resolved = strings.ToLower(strings.TrimSpace(cmd.Flags().Lookup("format").Value.String()))
 	} else if !ui.IsStdoutTTY() {
 		// Automatically switch to clean JSON when run by an AI agent, pipe, or script
 		resolved = ui.FormatJSON
@@ -70,7 +70,7 @@ func configureRuntimeMode(cmd *cobra.Command) error {
 		resolved = ui.FormatTable
 	}
 
-	if err := ui.ValidateFormat(resolved, allowCSV); err != nil {
+	if err := ui.ValidateFormat(resolved, allowTabular); err != nil {
 		// When format is invalid, default error emission to JSON if --json or non-TTY
 		if jsonOutput || !ui.IsStdoutTTY() {
 			ui.SetOutputFormat(ui.FormatJSON)
