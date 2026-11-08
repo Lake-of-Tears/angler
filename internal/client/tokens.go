@@ -11,21 +11,27 @@ import (
 )
 
 type User struct {
-	ID          string    `json:"id"`
-	Email       string    `json:"email"`
-	DisplayName *string   `json:"display_name,omitempty"`
-	Role        string    `json:"role"`
-	IsActive    bool      `json:"is_active"`
-	CreatedAt   time.Time `json:"created_at,omitempty"`
+	ID            string    `json:"id"`
+	Email         string    `json:"email"`
+	DisplayName   *string   `json:"display_name,omitempty"`
+	Role          string    `json:"role"`
+	IsActive      bool      `json:"is_active"`
+	CreatedAt     time.Time `json:"created_at,omitempty"`
+	HasPassword   bool      `json:"has_password,omitempty"`
+	AuthProviders []string  `json:"auth_providers,omitempty"`
 }
 
 type Workspace struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Slug      string    `json:"slug"`
-	Status    string    `json:"status"`
-	MyRole    *string   `json:"my_role,omitempty"`
-	CreatedAt time.Time `json:"created_at,omitempty"`
+	ID                string    `json:"id"`
+	Name              string    `json:"name"`
+	Slug              string    `json:"slug"`
+	Description       *string   `json:"description,omitempty"`
+	Status            string    `json:"status"`
+	MyRole            *string   `json:"my_role,omitempty"`
+	IsSystem          bool      `json:"is_system,omitempty"`
+	IsShared          bool      `json:"is_shared,omitempty"`
+	HasSharedCatalogs bool      `json:"has_shared_catalogs,omitempty"`
+	CreatedAt         time.Time `json:"created_at,omitempty"`
 }
 
 type WorkspaceDetail struct {

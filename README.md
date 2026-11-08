@@ -309,6 +309,31 @@ angler dashboards widgets get-data dash-123 w_kpi_1 --time-range last_30_days
 angler dashboards delete dash-123 --force
 ```
 
+### 11. IAM, Workspaces & Administration (`angler users`, `angler workspaces`, `angler admin`)
+
+Manage user accounts, multi-tenant workspace environments, access memberships, and cluster-wide runtime settings:
+
+```bash
+# User Management (superadmin)
+angler users list
+angler users get u-123
+angler users update u-123 --role superadmin --name "Lead Engineer"
+
+# Multi-Tenant Workspace Provisioning & Members
+angler workspaces list
+angler workspaces get ws-prod
+angler workspaces create --name "Risk Analytics" --slug risk-analytics
+angler workspaces members list ws-prod
+angler workspaces members add ws-prod --email analyst@lot.io --role editor
+angler workspaces members remove ws-prod u-123 --force
+
+# System Administration & Session Auditing
+angler admin settings get
+angler admin settings update --session-timeout 120 --gemini-model gemini-2.0-flash
+angler admin sessions list
+angler admin sessions revoke sess-123 --force
+```
+
 ---
 
 ## Command Reference
@@ -330,6 +355,9 @@ angler dashboards delete dash-123 --force
 | `angler down` | `angler dock` | Stop and safely dock running containers |
 | `angler auth` | — | Log in, log out, and check authentication status |
 | `angler tokens` | `angler pat` | Provision, inspect, list, and revoke Personal Access Tokens |
+| `angler users` | `angler user` | User accounts, global roles, active status, and credentials |
+| `angler workspaces` | `angler ws-admin` | Multi-tenant workspace provisioning and IAM memberships |
+| `angler admin` | — | System-wide settings, session auditing, and security controls |
 | `angler context` | — | Manage multiple environment profiles (`~/.angler/config.yaml`) |
 | `angler version` | — | Display build version, commit, and date |
 | `angler completion` | — | Generate shell autocompletions (bash, zsh, fish, powershell) |

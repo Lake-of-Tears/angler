@@ -65,6 +65,20 @@ func executeCLIForTest(t *testing.T, stdoutTTY bool, args ...string) (string, st
 	dashPublished = true
 	dashForce = false
 	dashTimeRange = ""
+	userRole = ""
+	userDisplayName = ""
+	userActive = true
+	wsAdminName = ""
+	wsAdminSlug = ""
+	wsAdminDescription = ""
+	wsMemberEmail = ""
+	wsMemberRole = "viewer"
+	wsMemberForce = false
+	adminSessionTimeout = 60
+	adminMaxHours = 24
+	adminGeminiModel = ""
+	adminGeminiKey = ""
+	adminForce = false
 
 	defer func() {
 		ui.OutWriter = os.Stdout
