@@ -281,6 +281,34 @@ angler ai vector-index sync main retail orders
 angler ai test-key --model gemini-2.0-flash
 ```
 
+### 10. BI Dashboards & Visualizations (`angler dashboards`)
+
+Inspect dashboard layouts, deploy new canvas specifications, and extract live aggregated chart data:
+
+```bash
+# List all dashboards in the workspace (aliases: angler dashboard, angler dash)
+angler dashboards list
+
+# Inspect dashboard canvas layout, metadata, and widget configurations
+angler dashboards get dash-123
+
+# Create a dashboard from built-in template or JSON/YAML specification
+angler dashboards create --title "Executive KPI Overview" --template executive
+angler dashboards create --spec ./dashboards/sales.json
+
+# Display workspace dashboard metrics and BI engine status
+angler dashboards stats
+
+# List widgets on a dashboard canvas
+angler dashboards widgets list dash-123
+
+# Fetch live aggregated metric points from a widget query
+angler dashboards widgets get-data dash-123 w_kpi_1 --time-range last_30_days
+
+# Delete a dashboard
+angler dashboards delete dash-123 --force
+```
+
 ---
 
 ## Command Reference
@@ -293,6 +321,7 @@ angler ai test-key --model gemini-2.0-flash
 | `angler fs` | `angler storage` | Filesystem & storage management modeled after Databricks FS / Volumes |
 | `angler workspace` | `angler ws` | Manage notebooks, scripts, directories, and headless execution |
 | `angler jobs` | `angler pipelines` | Manage data pipelines, scheduled jobs, DAG runs, and task logs |
+| `angler dashboards` | `angler dash`, `angler dashboard` | Native BI dashboards, canvas widget configurations, and aggregated metrics |
 | `angler ai` | `angler genie` | Genie conversational AI, semantic gateway, vector indexes, and LLM verification |
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
 | `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
