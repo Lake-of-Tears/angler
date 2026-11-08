@@ -87,7 +87,13 @@ go install github.com/Lake-of-Tears/angler@latest
 Connect to your Lake of Tears instance:
 
 ```bash
-# Interactive login
+# Log in with a Personal Access Token (Recommended)
+angler auth login --token lot_pat_abcdef0123456789...
+
+# Or pipe token via standard input in CI/CD runners
+echo "$LOT_TOKEN" | angler auth login --token-stdin
+
+# Interactive login (prompting for PAT or email & password)
 angler auth login
 
 # Or switch context profiles
@@ -145,6 +151,7 @@ angler catalog ls
 | `angler up` | `angler launch` | Spin up local Lake of Tears Docker stack |
 | `angler down` | `angler dock` | Stop and safely dock running containers |
 | `angler auth` | — | Log in, log out, and check authentication status |
+| `angler tokens` | `angler pat` | Provision, inspect, list, and revoke Personal Access Tokens |
 | `angler context` | — | Manage multiple environment profiles (`~/.angler/config.yaml`) |
 | `angler version` | — | Display build version, commit, and date |
 | `angler completion` | — | Generate shell autocompletions (bash, zsh, fish, powershell) |
@@ -177,6 +184,32 @@ angler bundle ls
 
 # Teardown and unprovision bundle resources
 angler bundle destroy --target dev --purge-storage -y
+```
+
+---
+
+## Personal Access Tokens (`angler tokens`)
+
+Manage scoped, long-lived Personal Access Tokens (PATs) for CI/CD runners, automated workflows, and autonomous agents:
+
+```bash
+# Generate a new token with default 30-day lifetime in the active workspace
+angler tokens create --name "github-actions-deploy"
+
+# Generate a 90-day token with write role for a specific workspace
+angler tokens create --name "airflow-sync" --workspace default --role write --lifetime-days 90
+
+# Machine-readable token generation (returns JSON payload containing raw lot_pat_... secret)
+angler tokens create --name "agent-token" --json
+
+# List active tokens registered to your account
+angler tokens list
+
+# List all tokens including revoked and expired
+angler tokens list --all
+
+# Revoke a token immediately
+angler tokens revoke 99999999-8888-7777-6666-555555555555 --yes
 ```
 
 ---
