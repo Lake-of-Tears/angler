@@ -150,6 +150,33 @@ angler net
 angler catalog ls
 ```
 
+### 6. Filesystem & Object Storage (`angler fs`)
+
+Browse and manage files in Lake of Tears object stores (S3/MinIO) and workspace volumes:
+
+```bash
+# List directory contents
+angler fs ls gold/telemetry
+
+# Stream / print file contents (with optional offset and length)
+angler fs cat configs/app.json --length 1024
+
+# Copy between local and remote lakehouse storage (lot://, s3://, dbfs://)
+angler fs cp ./data.csv lot://bronze/data.csv
+angler fs cp lot://gold/report.parquet ./report.parquet
+
+# Inspect object metadata and Parquet schemas
+angler fs stat gold/telemetry/data.parquet
+
+# Upload, download, and remove objects
+angler fs upload ./model.onnx models/
+angler fs download gold/summary.csv ./summary.csv
+angler fs rm bronze/staging/ --recursive --force
+
+# View workspace storage metrics
+angler fs stats
+```
+
 ---
 
 ## Command Reference
@@ -159,6 +186,7 @@ angler catalog ls
 | `angler bundle` | `angler lab` | Develop, validate, deploy, and manage Lake Asset Bundles (LABs) |
 | `angler status` | `angler ping` | Check cluster connectivity and service health |
 | `angler sql` | `angler query`, `angler cast` | Unified SQL execution, query plans, history, and AI assistance |
+| `angler fs` | `angler storage` | Filesystem & storage management modeled after Databricks FS / Volumes |
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
 | `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
 | `angler tool-defs` | `angler schema` | Export LLM tool/function schemas (Gemini, OpenAI, OpenAPI 3.1) |
