@@ -224,6 +224,37 @@ angler workspace search "duckdb"
 angler workspace runs analysis/model_training.ipynb
 ```
 
+### 8. Pipelines, Jobs & Workflow DAGs (`angler jobs`)
+
+Manage data pipelines, scheduled notebook runs, dbt tasks, and Airflow workflow DAGs:
+
+```bash
+# List all active and scheduled pipelines (alias: angler pipelines)
+angler jobs list
+angler jobs list --all
+
+# Inspect pipeline configuration, DAG dependency graph, and schedule
+angler jobs get telemetry_etl
+
+# Trigger immediate execution (with optional --wait blocking and progress streaming)
+angler jobs run telemetry_etl
+angler jobs run telemetry_etl --wait --timeout 5m
+
+# List past execution runs and inspect task breakdown
+angler jobs runs list telemetry_etl
+angler jobs runs get telemetry_etl manual__20261108T160000Z__user
+
+# Fetch stdout/stderr task execution logs
+angler jobs logs telemetry_etl manual__20261108T160000Z__user extract
+
+# Cancel an in-flight run
+angler jobs cancel telemetry_etl manual__20261108T160000Z__user --force
+
+# Pause or unpause scheduled execution
+angler jobs pause telemetry_etl
+angler jobs unpause telemetry_etl
+```
+
 ---
 
 ## Command Reference
@@ -235,6 +266,7 @@ angler workspace runs analysis/model_training.ipynb
 | `angler sql` | `angler query`, `angler cast` | Unified SQL execution, query plans, history, and AI assistance |
 | `angler fs` | `angler storage` | Filesystem & storage management modeled after Databricks FS / Volumes |
 | `angler workspace` | `angler ws` | Manage notebooks, scripts, directories, and headless execution |
+| `angler jobs` | `angler pipelines` | Manage data pipelines, scheduled jobs, DAG runs, and task logs |
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
 | `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
 | `angler tool-defs` | `angler schema` | Export LLM tool/function schemas (Gemini, OpenAI, OpenAPI 3.1) |

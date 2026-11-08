@@ -46,6 +46,13 @@ func executeCLIForTest(t *testing.T, stdoutTTY bool, args ...string) (string, st
 	wsTimeout = 2 * time.Minute
 	wsSubpath = ""
 	wsSavePath = ""
+	jobsWait = false
+	jobsForce = false
+	jobsConf = ""
+	jobsLimit = 25
+	jobsTryNumber = 1
+	jobsTimeout = 10 * time.Minute
+	jobsPollInterval = 3 * time.Second
 
 	defer func() {
 		ui.OutWriter = os.Stdout
