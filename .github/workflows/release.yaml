@@ -349,6 +349,7 @@ jobs:
               <title>Angler CLI (Lake of Tears)</title>
               <authors>Lake of Tears Team</authors>
               <owners>thelakeoftears</owners>
+              <copyright>Copyright (c) 2026 Lake of Tears Team</copyright>
               <projectUrl>https://thelakeoftears.com</projectUrl>
               <projectSourceUrl>https://github.com/Lake-of-Tears/angler</projectSourceUrl>
               <packageSourceUrl>https://github.com/Lake-of-Tears/angler</packageSourceUrl>
