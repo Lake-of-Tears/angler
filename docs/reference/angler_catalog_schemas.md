@@ -36,4 +36,5 @@ List, create, inspect, and delete schemas within a catalog.
 * [angler catalog schemas delete](angler_catalog_schemas_delete.md)	 - Drop a schema from a catalog
 * [angler catalog schemas get](angler_catalog_schemas_get.md)	 - Inspect schema details and its tables
 * [angler catalog schemas list](angler_catalog_schemas_list.md)	 - List all schemas in a catalog
+* [angler catalog schemas update](angler_catalog_schemas_update.md)	 - Update schema description
 

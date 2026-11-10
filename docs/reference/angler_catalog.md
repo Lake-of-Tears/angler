@@ -4,7 +4,8 @@ Unity Catalog-style metadata discovery and management (alias: net)
 
 ### Synopsis
 
-Inspect datasets, catalogs, database schemas, tables, and data anomalies in Lake of Tears.
+Inspect datasets, catalogs, database schemas, tables, soft-delete trash, TOON projections,
+cross-workspace sharing, and data anomalies in Lake of Tears.
 Modeled after Databricks Unity Catalog (catalogs, schemas, tables).
 
 Aliases:
@@ -14,9 +15,15 @@ Aliases:
 Examples:
   angler catalog list
   angler catalog get main
+  angler catalog update main --description "Production Lakehouse"
   angler catalog schemas list main
   angler catalog tables list main default
   angler catalog tables get main default users
+  angler catalog toon main default users
+  angler catalog trash list
+  angler catalog undrop <asset_id>
+  angler catalog directory
+  angler catalog access list main
   angler catalog manifest
   angler catalog anomalies detect --table users
 
@@ -50,12 +57,18 @@ angler catalog [flags]
 ### SEE ALSO
 
 * [angler](angler.md)	 - The official CLI for Lake of Tears data lakehouse
+* [angler catalog access](angler_catalog_access.md)	 - Manage user-scoped and cross-workspace catalog access requests and shares
 * [angler catalog anomalies](angler_catalog_anomalies.md)	 - Data and table anomaly detection suite
 * [angler catalog create](angler_catalog_create.md)	 - Register a new catalog in the workspace
 * [angler catalog delete](angler_catalog_delete.md)	 - Delete or purge a catalog
+* [angler catalog directory](angler_catalog_directory.md)	 - List all discoverable catalogs across the organization with caller access status
 * [angler catalog get](angler_catalog_get.md)	 - Inspect catalog metadata, schemas, and workspace ownership
 * [angler catalog ls](angler_catalog_ls.md)	 - List all registered catalogs in the active workspace
 * [angler catalog manifest](angler_catalog_manifest.md)	 - Export catalog manifest projection JSON
 * [angler catalog schemas](angler_catalog_schemas.md)	 - Manage and inspect catalog database schemas
 * [angler catalog tables](angler_catalog_tables.md)	 - Manage and inspect catalog tables
+* [angler catalog toon](angler_catalog_toon.md)	 - Export token-efficient TOON (Token-Oriented Object Notation) schema or table projection
+* [angler catalog trash](angler_catalog_trash.md)	 - Manage soft-deleted catalogs, schemas, and tables in the workspace trash
+* [angler catalog undrop](angler_catalog_undrop.md)	 - Restore a soft-deleted catalog, schema, or table from trash (alias for 'trash restore')
+* [angler catalog update](angler_catalog_update.md)	 - Update catalog description or name
 

@@ -43,6 +43,7 @@ Examples:
 
 * [angler](angler.md)	 - The official CLI for Lake of Tears data lakehouse
 * [angler admin ai-providers](angler_admin_ai-providers.md)	 - Configure, test, and discover models across Enterprise AI Providers (Vertex AI, Bedrock, OpenAI, Anthropic, Azure, Gemini)
+* [angler admin services](angler_admin_services.md)	 - Inspect and control Kubernetes platform service deployments (list, restart, stop, start)
 * [angler admin sessions](angler_admin_sessions.md)	 - Audit and manage active user and API sessions
 * [angler admin settings](angler_admin_settings.md)	 - Inspect and update system-wide configuration settings
 * [angler admin vaults](angler_admin_vaults.md)	 - Configure, test, and audit Enterprise Secret Vault providers (Internal, Azure KV, AWS SM, HashiCorp Vault, GCP SM)

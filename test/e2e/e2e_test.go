@@ -515,6 +515,110 @@ func TestE2E_BundleV2Enhancements(t *testing.T) {
 	}
 }
 
+func TestE2E_CatalogTrashTOONSharingAndPlatformServices(t *testing.T) {
+	homeDir := t.TempDir()
+
+	// 1. Catalog Trash & Undrop (#45)
+	stdout, stderr, err := runCLI(t, homeDir, "catalog", "trash", "list", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "dropped_events") {
+		t.Fatalf("catalog trash list E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "catalog", "undrop", "trash-e2e-001", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "trash-e2e-001") {
+		t.Fatalf("catalog undrop E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "catalog", "trash", "purge", "trash-e2e-001", "--force", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "trash-e2e-001") {
+		t.Fatalf("catalog trash purge E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	// 2. Catalog Update & TOON Export (#45)
+	stdout, stderr, err = runCLI(t, homeDir, "catalog", "update", "default_catalog", "--description", "Updated primary catalog", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "default_catalog") {
+		t.Fatalf("catalog update E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "catalog", "toon", "default_catalog", "sch-analytics", "tbl-events", "--raw",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "table: events") {
+		t.Fatalf("catalog toon table E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	// 3. Catalog Directory & Access Sharing (#45)
+	stdout, stderr, err = runCLI(t, homeDir, "catalog", "directory", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "biomedical_lake") {
+		t.Fatalf("catalog directory E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "catalog", "access", "list", "default_catalog", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "acc-e2e-001") {
+		t.Fatalf("catalog access list E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "catalog", "access", "approve", "default_catalog", "acc-e2e-001", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "acc-e2e-001") {
+		t.Fatalf("catalog access approve E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	// 4. Kubernetes Platform Service Lifecycle Controls (#45)
+	stdout, stderr, err = runCLI(t, homeDir, "compute", "services", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "Apache Superset") {
+		t.Fatalf("compute services E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "compute", "restart", "superset", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "restart") {
+		t.Fatalf("compute restart E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "admin", "services", "stop", "superset", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "stop") {
+		t.Fatalf("admin services stop E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "admin", "services", "start", "superset", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "start") {
+		t.Fatalf("admin services start E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+}
+
 func readWithTimeout(r *bufio.Reader, timeout time.Duration) (string, error) {
 	type readResult struct {
 		line string

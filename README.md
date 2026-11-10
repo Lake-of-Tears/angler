@@ -143,23 +143,45 @@ angler sonar "Which region had the largest revenue drop in Q3?"
 
 ### 5. Inspect Catalog (`angler catalog`)
 
-Browse and manage Unity Catalog-style data catalogs, schemas, tables, and anomalies:
+Browse and manage Unity Catalog-style data catalogs, schemas, tables, soft-delete trash, TOON projections, cross-workspace sharing, and anomalies:
 
 ```bash
 # List all registered catalogs (alias: angler net)
 angler catalog ls
 
-# Inspect catalog details and schemas
+# Inspect and update catalog details and schemas
 angler catalog get main
+angler catalog update main --description "Primary Lakehouse Catalog"
 
 # Manage database schemas within a catalog
 angler catalog schemas list main
 angler catalog schemas get main default
 angler catalog schemas create main gold
+angler catalog schemas update main gold --description "Curated executive metrics"
 
-# Inspect tables, columns, and partition patterns
+# Inspect and update tables, columns, and partition patterns
 angler catalog tables list main default
 angler catalog tables get main default users
+angler catalog tables update main default users --description "Active user accounts"
+
+# Export token-efficient TOON (Token-Oriented Object Notation) schema or table projections
+angler catalog toon main default
+angler catalog toon main default users --raw
+
+# Soft-Delete Trash & Undrop Recovery
+angler catalog trash list
+angler catalog undrop <asset_id>
+angler catalog trash restore <asset_id> --strategy rename --new-name users_v2
+angler catalog trash purge <asset_id> --force
+angler catalog trash purge-expired --force
+
+# User-Scoped Catalog Directory & Cross-Workspace Sharing
+angler catalog directory
+angler catalog access list main
+angler catalog access request finance_lake --message "Need Q4 revenue tables"
+angler catalog access approve main <access_id>
+angler catalog access reject main <access_id>
+angler catalog access revoke main <access_id> --force
 
 # Export full catalog manifest projection JSON
 angler catalog manifest
@@ -386,9 +408,9 @@ angler dashboards widgets get-data dash-123 w_kpi_1 --time-range last_30_days
 angler dashboards delete dash-123 --force
 ```
 
-### 13. IAM, Workspaces & Administration (`angler users`, `angler workspaces`, `angler admin`)
+### 13. IAM, Workspaces, Compute & Administration (`angler users`, `angler workspaces`, `angler compute`, `angler admin`)
 
-Manage user accounts, multi-tenant workspace environments, access memberships, enterprise AI providers, and cluster-wide runtime settings:
+Manage user accounts, multi-tenant workspace environments, access memberships, Kubernetes platform services, enterprise AI providers, and cluster-wide runtime settings:
 
 ```bash
 # User Management (superadmin)
@@ -404,10 +426,19 @@ angler workspaces members list ws-prod
 angler workspaces members add ws-prod --email analyst@lot.io --role editor
 angler workspaces members remove ws-prod u-123 --force
 
+# Kubernetes Platform Service Lifecycle Controls (superadmin)
+angler compute services
+angler compute restart superset
+angler compute stop jupyter
+angler compute start jupyter
+# Or via admin alias:
+angler admin services list
+angler admin services restart airflow
+
 # Multi-Provider AI Administration (Gemini, Vertex AI, OpenAI, Anthropic, Ollama, OpenAI-Compat)
 angler admin ai-providers list
-angler admin ai-providers test --provider vertex
-angler admin ai-providers discover-models --provider vertex
+angler admin ai-providers test vertex
+angler admin ai-providers discover-models vertex
 
 # System Administration & Session Auditing
 angler admin settings get
@@ -460,7 +491,8 @@ angler mcp install --client cursor --transport sse --print
 | `angler dashboards` | `angler dash`, `angler dashboard` | Native BI dashboards, canvas widget configurations, and aggregated metrics |
 | `angler ai` | `angler genie` | Genie conversational AI, vector retrieval, virtual models, embeddings, and enrichment |
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
-| `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
+| `angler catalog` | `angler net` | Browse and manage catalogs, schemas, tables, soft-delete trash/undrop, TOON export, and sharing |
+| `angler compute` | `angler clusters` | Inspect cluster status, topology, and control Kubernetes platform service lifecycles (`restart`, `stop`, `start`) |
 | `angler tool-defs` | `angler schema` | Export LLM tool/function schemas (Gemini, OpenAI, OpenAPI 3.1) |
 | `angler mcp` | — | Model Context Protocol (MCP) stdio server, remote `/api/mcp` bridge, and client installer |
 | `angler up` | `angler launch` | Spin up local Lake of Tears Docker stack |

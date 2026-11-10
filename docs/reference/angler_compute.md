@@ -41,6 +41,10 @@ angler compute [flags]
 
 * [angler](angler.md)	 - The official CLI for Lake of Tears data lakehouse
 * [angler compute list](angler_compute_list.md)	 - List compute engines, pods, and resource limits
+* [angler compute restart](angler_compute_restart.md)	 - Trigger a rolling restart of a platform deployment
+* [angler compute services](angler_compute_services.md)	 - List Kubernetes platform deployments, replica counts, pod states, and resource specs
+* [angler compute start](angler_compute_start.md)	 - Scale a stopped platform service back to active replicas
 * [angler compute status](angler_compute_status.md)	 - Check compute cluster health, uptime, and service allocations
+* [angler compute stop](angler_compute_stop.md)	 - Scale a non-core platform service deployment to 0 replicas
 * [angler compute topology](angler_compute_topology.md)	 - Inspect cluster ingress routes, URLs, and persistent storage volumes
 
