@@ -89,6 +89,10 @@ func NewMockBackend() *MockBackend {
 	// 11. Remote MCP Server (#43)
 	mux.HandleFunc("/api/mcp", mb.handleMCP)
 
+	// 12. Lake Asset Bundles (#44)
+	mux.HandleFunc("/api/bundles", mb.handleBundles)
+	mux.HandleFunc("/api/bundles/", mb.handleBundles)
+
 	mb.Server = httptest.NewServer(mux)
 	mb.URL = mb.Server.URL
 	return mb
@@ -697,5 +701,88 @@ func (mb *MockBackend) handleMCP(w http.ResponseWriter, r *http.Request) {
 			"id":      rpcReq.ID,
 			"result":  map[string]any{},
 		})
+	}
+}
+
+func (mb *MockBackend) handleBundles(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	path := strings.TrimPrefix(r.URL.Path, "/api/bundles")
+
+	switch {
+	case r.Method == http.MethodGet && (path == "" || path == "/"):
+		_ = json.NewEncoder(w).Encode(client.BundleListResponse{
+			Bundles: []client.BundleListItem{
+				{
+					ID:             "bundle-e2e-uuid-0001",
+					BundleName:     "e2e-webhook-lake",
+					Target:         "dev",
+					Status:         "active",
+					Version:        "0.1.0",
+					CatalogsCount:  1,
+					TablesCount:    2,
+					PipelinesCount: 1,
+				},
+			},
+			Total: 1,
+		})
+
+	case r.Method == http.MethodPost && path == "/deploy":
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(client.BundleDeployResponse{
+			ID:                  "bundle-e2e-uuid-0001",
+			BundleID:            "bundle-e2e-uuid-0001",
+			BundleName:          "e2e-webhook-lake",
+			Target:              "dev",
+			Status:              "active",
+			Version:             "0.1.0",
+			ExecutionDurationMs: 18.2,
+		})
+
+	case r.Method == http.MethodPost && path == "/generate-ai":
+		_ = json.NewEncoder(w).Encode(client.BundleGenerateResponse{
+			Manifest: "# Lake Asset Bundle (TOON Specification)\nbundle:\n  name: e2e-ai-bundle\n  version: 0.1.0\n",
+			Format:   "toon",
+			Model:    "gemini-2.5-flash",
+			Valid:    true,
+		})
+
+	case r.Method == http.MethodPost && strings.HasSuffix(path, "/run"):
+		var runReq client.BundleRunRequest
+		_ = json.NewDecoder(r.Body).Decode(&runReq)
+		_ = json.NewEncoder(w).Encode(client.BundleRunResponse{
+			BundleID:     "bundle-e2e-uuid-0001",
+			BundleName:   "e2e-webhook-lake",
+			PipelineName: "webhook_ingest_etl",
+			DAGID:        "e2e_webhook_lake_webhook_ingest_etl",
+			DAGRunID:     "manual__e2e_bundle_run_1",
+			Status:       "running",
+		})
+
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/bundle-e2e-uuid-0001"):
+		includeDrift := r.URL.Query().Get("include_drift") != "false"
+		var drift map[string]any
+		if includeDrift {
+			drift = map[string]any{
+				"in_sync":       true,
+				"total_checked": 4,
+				"missing_count": 0,
+			}
+		}
+		_ = json.NewEncoder(w).Encode(client.BundleDetailResponse{
+			ID:             "bundle-e2e-uuid-0001",
+			BundleName:     "e2e-webhook-lake",
+			Target:         "dev",
+			Status:         "active",
+			Version:        "0.1.0",
+			GitCommitSHA:   "5bd9458",
+			CatalogsCount:  1,
+			TablesCount:    2,
+			PipelinesCount: 1,
+			ManifestRaw:    "bundle:\n  name: e2e-webhook-lake\n",
+			Drift:          drift,
+		})
+
+	default:
+		http.NotFound(w, r)
 	}
 }

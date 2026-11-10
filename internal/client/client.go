@@ -381,39 +381,67 @@ type BundleListResponse struct {
 }
 
 type BundleDetailResponse struct {
-	ID             string                 `json:"id"`
-	WorkspaceID    string                 `json:"workspace_id"`
-	BundleName     string                 `json:"bundle_name"`
-	Target         string                 `json:"target"`
-	Status         string                 `json:"status"`
-	Version        string                 `json:"version"`
-	Description    string                 `json:"description,omitempty"`
-	GitCommitSHA   string                 `json:"git_commit_sha,omitempty"`
-	ManifestRaw    string                 `json:"manifest_raw"`
-	ResourcesMap   map[string]interface{} `json:"resources_map,omitempty"`
-	Drift          map[string]interface{} `json:"drift,omitempty"`
-	LastDeployedAt string                 `json:"last_deployed_at,omitempty"`
-	CreatedAt      string                 `json:"created_at"`
+	ID              string                 `json:"id"`
+	WorkspaceID     string                 `json:"workspace_id"`
+	BundleName      string                 `json:"bundle_name"`
+	Target          string                 `json:"target"`
+	Status          string                 `json:"status"`
+	Version         string                 `json:"version"`
+	Description     string                 `json:"description,omitempty"`
+	GitCommitSHA    string                 `json:"git_commit_sha,omitempty"`
+	CommitHash      string                 `json:"commit_hash,omitempty"`
+	ManifestFormat  string                 `json:"manifest_format,omitempty"`
+	ManifestRaw     string                 `json:"manifest_raw"`
+	ResourcesMap    map[string]interface{} `json:"resources_map,omitempty"`
+	ResourcesCount  int                    `json:"resources_count"`
+	CatalogsCount   int                    `json:"catalogs_count"`
+	TablesCount     int                    `json:"tables_count"`
+	PipelinesCount  int                    `json:"pipelines_count"`
+	DashboardsCount int                    `json:"dashboards_count"`
+	ErrorMessage    string                 `json:"error_message,omitempty"`
+	Drift           map[string]interface{} `json:"drift,omitempty"`
+	LastDeployedAt  string                 `json:"last_deployed_at,omitempty"`
+	CreatedAt       string                 `json:"created_at"`
+	UpdatedAt       string                 `json:"updated_at,omitempty"`
 }
 
 type BundleRunRequest struct {
-	PipelineName string `json:"pipeline_name,omitempty"`
+	PipelineName string                 `json:"pipeline_name,omitempty"`
+	Conf         map[string]interface{} `json:"conf,omitempty"`
 }
 
 type BundleRunResponse struct {
-	BundleID     string `json:"bundle_id"`
-	BundleName   string `json:"bundle_name"`
-	PipelineName string `json:"pipeline_name"`
-	DAGID        string `json:"dag_id"`
-	DAGRunID     string `json:"dag_run_id"`
-	Status       string `json:"status"`
-	Message      string `json:"message"`
+	BundleID      string `json:"bundle_id"`
+	BundleName    string `json:"bundle_name,omitempty"`
+	PipelineName  string `json:"pipeline_name"`
+	DAGID         string `json:"dag_id"`
+	DAGRunID      string `json:"dag_run_id"`
+	Status        string `json:"status"`
+	ExecutionDate string `json:"execution_date,omitempty"`
+	Message       string `json:"message,omitempty"`
+}
+
+type BundleGenerateRequest struct {
+	Prompt        string `json:"prompt"`
+	Format        string `json:"format,omitempty"`
+	WorkspaceSlug string `json:"workspace_slug,omitempty"`
+}
+
+type BundleGenerateResponse struct {
+	Manifest string `json:"manifest"`
+	Format   string `json:"format"`
+	Model    string `json:"model"`
+	Valid    bool   `json:"valid"`
 }
 
 type BundleDestroyResponse struct {
-	BundleID string `json:"bundle_id"`
-	Status   string `json:"status"`
-	Message  string `json:"message"`
+	ID              string              `json:"id,omitempty"`
+	BundleID        string              `json:"bundle_id,omitempty"`
+	BundleName      string              `json:"bundle_name,omitempty"`
+	Target          string              `json:"target,omitempty"`
+	Status          string              `json:"status"`
+	PurgedResources map[string][]string `json:"purged_resources,omitempty"`
+	Message         string              `json:"message"`
 }
 
 func (c *Client) ValidateBundle(req *BundleValidateRequest) (*BundleValidationResponse, error) {
@@ -508,7 +536,12 @@ func (c *Client) ListBundles(target, status string) (*BundleListResponse, error)
 }
 
 func (c *Client) GetBundle(id string) (*BundleDetailResponse, error) {
-	httpReq, err := c.newRequest(http.MethodGet, fmt.Sprintf("/api/bundles/%s?include_drift=true", url.PathEscape(id)), nil)
+	return c.GetBundleWithOptions(id, true)
+}
+
+func (c *Client) GetBundleWithOptions(id string, includeDrift bool) (*BundleDetailResponse, error) {
+	path := fmt.Sprintf("/api/bundles/%s?include_drift=%t", url.PathEscape(id), includeDrift)
+	httpReq, err := c.newRequest(http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -528,18 +561,29 @@ func (c *Client) GetBundle(id string) (*BundleDetailResponse, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, fmt.Errorf("failed to parse bundle detail response: %w", err)
 	}
+	if res.GitCommitSHA == "" && res.CommitHash != "" {
+		res.GitCommitSHA = res.CommitHash
+	}
+	if res.CommitHash == "" && res.GitCommitSHA != "" {
+		res.CommitHash = res.GitCommitSHA
+	}
 	return &res, nil
 }
 
-func (c *Client) RunBundle(id string, pipelineName string) (*BundleRunResponse, error) {
+func (c *Client) RunBundle(id string, pipelineName string, conf ...map[string]interface{}) (*BundleRunResponse, error) {
 	path := fmt.Sprintf("/api/bundles/%s/run", url.PathEscape(id))
 	if pipelineName != "" {
 		path += fmt.Sprintf("?pipeline_name=%s", url.QueryEscape(pipelineName))
 	}
 
-	httpReq, err := c.newRequest(http.MethodPost, path, BundleRunRequest{
+	reqBody := BundleRunRequest{
 		PipelineName: pipelineName,
-	})
+	}
+	if len(conf) > 0 && conf[0] != nil {
+		reqBody.Conf = conf[0]
+	}
+
+	httpReq, err := c.newRequest(http.MethodPost, path, reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -558,6 +602,35 @@ func (c *Client) RunBundle(id string, pipelineName string) (*BundleRunResponse, 
 	var res BundleRunResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, fmt.Errorf("failed to parse bundle run response: %w", err)
+	}
+	return &res, nil
+}
+
+func (c *Client) GenerateBundleAI(prompt, format string) (*BundleGenerateResponse, error) {
+	reqBody := BundleGenerateRequest{
+		Prompt:        prompt,
+		Format:        format,
+		WorkspaceSlug: c.Workspace,
+	}
+	httpReq, err := c.newRequest(http.MethodPost, "/api/bundles/generate-ai", reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("generate bundle AI request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("generate bundle AI failed (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var res BundleGenerateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("failed to parse generate bundle AI response: %w", err)
 	}
 	return &res, nil
 }

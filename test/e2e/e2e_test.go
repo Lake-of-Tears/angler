@@ -465,6 +465,56 @@ func TestE2E_LakesetSecretsWebhooksAIMCP(t *testing.T) {
 	}
 }
 
+func TestE2E_BundleV2Enhancements(t *testing.T) {
+	homeDir := t.TempDir()
+
+	// 1. Live Drift Inspection via 'angler bundle get'
+	stdout, stderr, err := runCLI(t, homeDir, "bundle", "get", "e2e-webhook-lake", "-T", "dev", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "bundle-e2e-uuid-0001") || !strings.Contains(stdout, "in_sync") {
+		t.Fatalf("bundle get E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	// 2. 'angler bundle inspect --no-drift'
+	stdout, stderr, err = runCLI(t, homeDir, "bundle", "inspect", "bundle-e2e-uuid-0001", "--no-drift", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "e2e-webhook-lake") {
+		t.Fatalf("bundle inspect --no-drift E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	// 3. 'angler bundle run --conf'
+	stdout, stderr, err = runCLI(t, homeDir, "bundle", "run", "webhook_ingest_etl",
+		"--bundle-id", "bundle-e2e-uuid-0001",
+		"--conf", `{"batch_date":"2026-11-10"}`,
+		"-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "manual__e2e_bundle_run_1") {
+		t.Fatalf("bundle run --conf E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	// 4. 'angler bundle generate' with --out
+	outPath := filepath.Join(homeDir, "generated_lake.toon")
+	stdout, stderr, err = runCLI(t, homeDir, "bundle", "generate",
+		"Build a real-time webhook medallion pipeline",
+		"--out", outPath,
+		"-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "e2e-ai-bundle") {
+		t.Fatalf("bundle generate E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+	if _, statErr := os.Stat(outPath); os.IsNotExist(statErr) {
+		t.Fatalf("expected generated manifest file at %s", outPath)
+	}
+}
+
 func readWithTimeout(r *bufio.Reader, timeout time.Duration) (string, error) {
 	type readResult struct {
 		line string

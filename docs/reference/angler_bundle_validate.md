@@ -5,12 +5,12 @@ Validate bundle manifest syntax, variable bindings, and DAG cycles
 ### Synopsis
 
 Validate a Lake Asset Bundle manifest against syntax requirements, variable interpolation,
-pipeline DAG acyclicity, and remote workspace constraints.
+pipeline DAG acyclicity, task virtualenv requirements, @webhook schedules, and remote workspace constraints.
 
 Examples:
   angler bundle validate --local
-  angler bundle validate -t dev
-  angler bundle validate -f custom.toon -t prod
+  angler bundle validate -T dev
+  angler bundle validate -f custom.toon -T prod
 
 ```
 angler bundle validate [flags]
