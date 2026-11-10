@@ -485,4 +485,3 @@ func (c *Client) StartPlatformService(serviceName string) (*PlatformServiceActio
 	}
 	return &res, nil
 }
-

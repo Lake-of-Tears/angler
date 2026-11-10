@@ -1022,4 +1022,3 @@ func (c *Client) RevokeCatalogAccess(catalogID, accessID string) error {
 
 	return nil
 }
-

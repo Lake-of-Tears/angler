@@ -731,4 +731,3 @@ func TestCatalogDirectoryAndAccess(t *testing.T) {
 		t.Errorf("expected revoked confirmation, got stdout: %s, stderr: %s", stdout, stderr)
 	}
 }
-

@@ -245,4 +245,3 @@ func TestCatalogTrashTOONUpdateAndAccessClient(t *testing.T) {
 		t.Fatalf("RevokeCatalogAccess failed: %v", err)
 	}
 }
-

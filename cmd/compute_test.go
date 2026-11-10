@@ -175,4 +175,3 @@ func TestPlatformServiceLifecycleControls(t *testing.T) {
 		t.Errorf("expected start confirmation, got stdout: %s, stderr: %s", stdout, stderr)
 	}
 }
-

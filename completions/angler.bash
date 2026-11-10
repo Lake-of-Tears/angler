@@ -930,6 +930,306 @@ _angler_admin_help()
     noun_aliases=()
 }
 
+_angler_admin_services_help()
+{
+    last_command="angler_admin_services_help"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    has_completion_function=1
+    noun_aliases=()
+}
+
+_angler_admin_services_list()
+{
+    last_command="angler_admin_services_list"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_admin_services_restart()
+{
+    last_command="angler_admin_services_restart"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_admin_services_start()
+{
+    last_command="angler_admin_services_start"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_admin_services_stop()
+{
+    last_command="angler_admin_services_stop"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_admin_services()
+{
+    last_command="angler_admin_services"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("help")
+    commands+=("list")
+    if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
+        command_aliases+=("ls")
+        aliashash["ls"]="list"
+    fi
+    commands+=("restart")
+    commands+=("start")
+    commands+=("stop")
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _angler_admin_sessions_help()
 {
     last_command="angler_admin_sessions_help"
@@ -1830,6 +2130,13 @@ _angler_admin()
         aliashash["ai-provider"]="ai-providers"
     fi
     commands+=("help")
+    commands+=("services")
+    if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
+        command_aliases+=("service")
+        aliashash["service"]="services"
+        command_aliases+=("svc")
+        aliashash["svc"]="services"
+    fi
     commands+=("sessions")
     if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
         command_aliases+=("session")
@@ -3891,6 +4198,372 @@ _angler_bundle()
     noun_aliases=()
 }
 
+_angler_catalog_access_approve()
+{
+    last_command="angler_catalog_access_approve"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_access_help()
+{
+    last_command="angler_catalog_access_help"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    has_completion_function=1
+    noun_aliases=()
+}
+
+_angler_catalog_access_list()
+{
+    last_command="angler_catalog_access_list"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_access_reject()
+{
+    last_command="angler_catalog_access_reject"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_access_request()
+{
+    last_command="angler_catalog_access_request"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--message=")
+    two_word_flags+=("--message")
+    two_word_flags+=("-m")
+    local_nonpersistent_flags+=("--message")
+    local_nonpersistent_flags+=("--message=")
+    local_nonpersistent_flags+=("-m")
+    flags+=("--mode=")
+    two_word_flags+=("--mode")
+    local_nonpersistent_flags+=("--mode")
+    local_nonpersistent_flags+=("--mode=")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    local_nonpersistent_flags+=("--workspace")
+    local_nonpersistent_flags+=("--workspace=")
+    local_nonpersistent_flags+=("-w")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_access_revoke()
+{
+    last_command="angler_catalog_access_revoke"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--force")
+    flags+=("-f")
+    local_nonpersistent_flags+=("--force")
+    local_nonpersistent_flags+=("-f")
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_access()
+{
+    last_command="angler_catalog_access"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("approve")
+    commands+=("help")
+    commands+=("list")
+    if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
+        command_aliases+=("ls")
+        aliashash["ls"]="list"
+    fi
+    commands+=("reject")
+    commands+=("request")
+    commands+=("revoke")
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _angler_catalog_anomalies_detect()
 {
     last_command="angler_catalog_anomalies_detect"
@@ -4151,6 +4824,58 @@ _angler_catalog_delete()
     flags+=("--workspace=")
     two_word_flags+=("--workspace")
     two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_directory()
+{
+    last_command="angler_catalog_directory"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    local_nonpersistent_flags+=("--workspace")
+    local_nonpersistent_flags+=("--workspace=")
+    local_nonpersistent_flags+=("-w")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
     flags+=("--workspace-id=")
     two_word_flags+=("--workspace-id")
     flags+=("--yes")
@@ -4607,6 +5332,61 @@ _angler_catalog_schemas_list()
     noun_aliases=()
 }
 
+_angler_catalog_schemas_update()
+{
+    last_command="angler_catalog_schemas_update"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--description=")
+    two_word_flags+=("--description")
+    two_word_flags+=("-d")
+    local_nonpersistent_flags+=("--description")
+    local_nonpersistent_flags+=("--description=")
+    local_nonpersistent_flags+=("-d")
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _angler_catalog_schemas()
 {
     last_command="angler_catalog_schemas"
@@ -4627,6 +5407,7 @@ _angler_catalog_schemas()
         command_aliases+=("ls")
         aliashash["ls"]="list"
     fi
+    commands+=("update")
 
     flags=()
     two_word_flags=()
@@ -4865,6 +5646,65 @@ _angler_catalog_tables_list()
     noun_aliases=()
 }
 
+_angler_catalog_tables_update()
+{
+    last_command="angler_catalog_tables_update"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--description=")
+    two_word_flags+=("--description")
+    two_word_flags+=("-d")
+    local_nonpersistent_flags+=("--description")
+    local_nonpersistent_flags+=("--description=")
+    local_nonpersistent_flags+=("-d")
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--s3-path=")
+    two_word_flags+=("--s3-path")
+    local_nonpersistent_flags+=("--s3-path")
+    local_nonpersistent_flags+=("--s3-path=")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _angler_catalog_tables()
 {
     last_command="angler_catalog_tables"
@@ -4883,6 +5723,376 @@ _angler_catalog_tables()
     if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
         command_aliases+=("ls")
         aliashash["ls"]="list"
+    fi
+    commands+=("update")
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_toon()
+{
+    last_command="angler_catalog_toon"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--raw")
+    local_nonpersistent_flags+=("--raw")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_trash_help()
+{
+    last_command="angler_catalog_trash_help"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    has_completion_function=1
+    noun_aliases=()
+}
+
+_angler_catalog_trash_list()
+{
+    last_command="angler_catalog_trash_list"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_trash_purge()
+{
+    last_command="angler_catalog_trash_purge"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--force")
+    flags+=("-f")
+    local_nonpersistent_flags+=("--force")
+    local_nonpersistent_flags+=("-f")
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_trash_purge-expired()
+{
+    last_command="angler_catalog_trash_purge-expired"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--force")
+    flags+=("-f")
+    local_nonpersistent_flags+=("--force")
+    local_nonpersistent_flags+=("-f")
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_trash_restore()
+{
+    last_command="angler_catalog_trash_restore"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--new-name=")
+    two_word_flags+=("--new-name")
+    local_nonpersistent_flags+=("--new-name")
+    local_nonpersistent_flags+=("--new-name=")
+    flags+=("--strategy=")
+    two_word_flags+=("--strategy")
+    local_nonpersistent_flags+=("--strategy")
+    local_nonpersistent_flags+=("--strategy=")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_trash()
+{
+    last_command="angler_catalog_trash"
+
+    command_aliases=()
+
+    commands=()
+    commands+=("help")
+    commands+=("list")
+    if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
+        command_aliases+=("ls")
+        aliashash["ls"]="list"
+    fi
+    commands+=("purge")
+    commands+=("purge-expired")
+    commands+=("restore")
+    if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
+        command_aliases+=("undrop")
+        aliashash["undrop"]="restore"
     fi
 
     flags=()
@@ -4926,6 +6136,122 @@ _angler_catalog_tables()
     noun_aliases=()
 }
 
+_angler_catalog_undrop()
+{
+    last_command="angler_catalog_undrop"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--new-name=")
+    two_word_flags+=("--new-name")
+    local_nonpersistent_flags+=("--new-name")
+    local_nonpersistent_flags+=("--new-name=")
+    flags+=("--strategy=")
+    two_word_flags+=("--strategy")
+    local_nonpersistent_flags+=("--strategy")
+    local_nonpersistent_flags+=("--strategy=")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_catalog_update()
+{
+    last_command="angler_catalog_update"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--description=")
+    two_word_flags+=("--description")
+    two_word_flags+=("-d")
+    local_nonpersistent_flags+=("--description")
+    local_nonpersistent_flags+=("--description=")
+    local_nonpersistent_flags+=("-d")
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--name=")
+    two_word_flags+=("--name")
+    local_nonpersistent_flags+=("--name")
+    local_nonpersistent_flags+=("--name=")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _angler_catalog()
 {
     last_command="angler_catalog"
@@ -4933,6 +6259,7 @@ _angler_catalog()
     command_aliases=()
 
     commands=()
+    commands+=("access")
     commands+=("anomalies")
     commands+=("create")
     commands+=("delete")
@@ -4940,6 +6267,7 @@ _angler_catalog()
         command_aliases+=("rm")
         aliashash["rm"]="delete"
     fi
+    commands+=("directory")
     commands+=("get")
     commands+=("help")
     commands+=("ls")
@@ -4958,6 +6286,10 @@ _angler_catalog()
         command_aliases+=("table")
         aliashash["table"]="tables"
     fi
+    commands+=("toon")
+    commands+=("trash")
+    commands+=("undrop")
+    commands+=("update")
 
     flags=()
     two_word_flags=()
@@ -5404,9 +6736,205 @@ _angler_compute_list()
     noun_aliases=()
 }
 
+_angler_compute_restart()
+{
+    last_command="angler_compute_restart"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_compute_services()
+{
+    last_command="angler_compute_services"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_compute_start()
+{
+    last_command="angler_compute_start"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _angler_compute_status()
 {
     last_command="angler_compute_status"
+
+    command_aliases=()
+
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+    flags+=("--help")
+    flags+=("-h")
+    local_nonpersistent_flags+=("--help")
+    local_nonpersistent_flags+=("-h")
+    flags+=("--config=")
+    two_word_flags+=("--config")
+    flags+=("--context=")
+    two_word_flags+=("--context")
+    two_word_flags+=("-c")
+    flags+=("--endpoint=")
+    two_word_flags+=("--endpoint")
+    flags+=("--force")
+    flags+=("--json")
+    flags+=("--non-interactive")
+    flags+=("--on-behalf-of=")
+    two_word_flags+=("--on-behalf-of")
+    flags+=("--output=")
+    two_word_flags+=("--output")
+    two_word_flags+=("-o")
+    flags+=("--token=")
+    two_word_flags+=("--token")
+    two_word_flags+=("-t")
+    flags+=("--workspace=")
+    two_word_flags+=("--workspace")
+    two_word_flags+=("-w")
+    flags+=("--workspace-id=")
+    two_word_flags+=("--workspace-id")
+    flags+=("--yes")
+    flags+=("-y")
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_angler_compute_stop()
+{
+    last_command="angler_compute_stop"
 
     command_aliases=()
 
@@ -5515,11 +7043,21 @@ _angler_compute()
         command_aliases+=("ls")
         aliashash["ls"]="list"
     fi
+    commands+=("restart")
+    commands+=("services")
+    if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
+        command_aliases+=("service")
+        aliashash["service"]="services"
+        command_aliases+=("svc")
+        aliashash["svc"]="services"
+    fi
+    commands+=("start")
     commands+=("status")
     if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
         command_aliases+=("health")
         aliashash["health"]="status"
     fi
+    commands+=("stop")
     commands+=("topology")
     if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
         command_aliases+=("topo")
