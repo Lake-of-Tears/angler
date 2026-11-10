@@ -7,7 +7,8 @@ Scaffold a new Lake Asset Bundle project
 Initialize a new Lake Asset Bundle with starter catalogs, schemas, pipelines, and manifests.
 
 Available templates:
-  • python-etl (default): Starter DuckDB pipeline and managed tables
+  • python-etl (default): Starter Python virtualenv + DuckDB pipeline and managed tables
+  • webhook-etl: Inbound @webhook-triggered Python + DuckDB medallion pipeline
   • rag-search: Lakehouse with vector embeddings and semantic search
   • medallion: Full Bronze, Silver, Gold tiered architecture with transformation stages
 
@@ -20,7 +21,7 @@ angler bundle init [name] [flags]
 ```
       --format string     Manifest format: toon or yaml (default "toon")
   -h, --help              help for init
-      --template string   Template (python-etl, rag-search, medallion) (default "python-etl")
+      --template string   Template (python-etl, webhook-etl, rag-search, medallion) (default "python-etl")
 ```
 
 ### Options inherited from parent commands

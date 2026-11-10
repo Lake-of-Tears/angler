@@ -478,24 +478,33 @@ angler mcp install --client cursor --transport sse --print
 
 ## Lake Asset Bundles (LABs)
 
-`angler bundle` brings declarative Infrastructure-as-Code to your data lakehouse with AI-first Token-Oriented Object Notation (`lake.toon`) and YAML compatibility.
+`angler bundle` brings declarative Infrastructure-as-Code to your data lakehouse with AI-first Token-Oriented Object Notation (`lake.toon`) and YAML compatibility, supporting Python virtualenv task `requirements`, `@webhook`-triggered pipelines, live drift detection, and AI Prompt-to-Bundle generation.
 
 ```bash
-# Initialize a new project with starter templates
+# Initialize a new project with starter templates (python-etl, webhook-etl, rag-search, medallion)
 angler bundle init my-analytics --template medallion
+angler bundle init my-webhook-etl --template webhook-etl --format yaml
 
-# Validate manifest syntax offline or against remote server
+# Generate a complete Lake Asset Bundle from a natural language prompt
+angler bundle generate "Build a customer 360 medallion pipeline with webhook ingestion" --out lake.toon
+angler bundle generate "Biomedical PubMed RAG lakehouse with vector search" --format yaml --out lake.yml
+
+# Validate manifest syntax, DAG cycles, task requirements, and @webhook schedules offline or remotely
 angler bundle validate --local
 angler bundle validate --target dev
 
 # Simulate deployment with diff reconciliation plan
 angler bundle deploy --target prod --dry-run
 
-# Deploy bundle assets, managed tables, and Airflow DAGs
+# Deploy bundle assets, Python scripts (scripts/, python/, src/), SQL, tables, and Airflow DAGs
 angler bundle deploy --target dev
 
-# Trigger ad-hoc pipeline execution
-angler bundle run orders_etl --target dev
+# Inspect deployed bundle metadata, resource inventory, and live state drift report
+angler bundle get my-analytics --target dev
+angler bundle inspect my-analytics --manifest
+
+# Trigger ad-hoc pipeline execution with runtime JSON configuration and wait for completion
+angler bundle run orders_etl --target dev --conf '{"batch_date":"2026-11-10"}' --wait
 
 # List active deployed bundles
 angler bundle ls

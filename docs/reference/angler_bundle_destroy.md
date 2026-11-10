@@ -8,8 +8,8 @@ Permanently deletes provisioned tables, pipelines, and dashboards managed by the
 Core medallion schemas (bronze, silver, gold) remain protected.
 
 Examples:
-  angler bundle destroy -t dev -y
-  angler bundle destroy -t dev --purge-storage -y
+  angler bundle destroy -T dev -y
+  angler bundle destroy -T dev --purge-storage -y
 
 ```
 angler bundle destroy [flags]

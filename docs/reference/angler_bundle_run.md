@@ -5,9 +5,11 @@ Trigger ad-hoc execution of a bundle pipeline or DAG
 ### Synopsis
 
 Execute an Airflow pipeline defined within the deployed bundle.
+Pass --conf to inject runtime JSON parameters into the DAG run, and --wait to poll until completion.
 
 Examples:
-  angler bundle run orders_etl -t dev
+  angler bundle run orders_etl -T dev
+  angler bundle run orders_etl -T dev --conf '{"batch_date":"2026-11-10"}' --wait
   angler bundle run --bundle-id 96fd3d6c-2c6e-4b81-8198-453ea28a085a
 
 ```
@@ -17,8 +19,12 @@ angler bundle run [pipeline] [flags]
 ### Options
 
 ```
-      --bundle-id string   UUID of the deployed bundle
-  -h, --help               help for run
+      --bundle-id string         UUID of the deployed bundle
+      --conf string              Runtime configuration JSON payload passed to the pipeline DAG run
+  -h, --help                     help for run
+      --poll-interval duration   Polling interval when waiting for pipeline completion (default 3s)
+      --timeout duration         Timeout when waiting for pipeline completion (default 10m0s)
+      --wait                     Wait for triggered pipeline run to complete before exiting
 ```
 
 ### Options inherited from parent commands

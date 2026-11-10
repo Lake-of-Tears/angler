@@ -4,12 +4,12 @@ Deploy Lake Asset Bundle resources and pipelines to the active lakehouse
 
 ### Synopsis
 
-Deploys catalogs, schemas, DuckDB managed tables, vector indices, Airflow DAGs,
-and dashboards to the target environment.
+Deploys catalogs, schemas, DuckDB managed tables, vector indices, Python virtualenv Airflow DAGs,
+webhook triggers, and Lakeset semantic datasets to the target environment.
 
 Examples:
-  angler bundle deploy -t dev
-  angler bundle deploy -t prod --dry-run
+  angler bundle deploy -T dev
+  angler bundle deploy -T prod --dry-run
 
 ```
 angler bundle deploy [flags]
