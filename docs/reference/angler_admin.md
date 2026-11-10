@@ -31,6 +31,7 @@ Examples:
       --force                 bypass confirmation prompts
       --json                  output results in JSON format
       --non-interactive       disable interactive prompts
+      --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
   -t, --token string          API authentication token
   -w, --workspace string      Lake of Tears workspace slug or name
@@ -41,6 +42,8 @@ Examples:
 ### SEE ALSO
 
 * [angler](angler.md)	 - The official CLI for Lake of Tears data lakehouse
+* [angler admin ai-providers](angler_admin_ai-providers.md)	 - Configure, test, and discover models across Enterprise AI Providers (Vertex AI, Bedrock, OpenAI, Anthropic, Azure, Gemini)
 * [angler admin sessions](angler_admin_sessions.md)	 - Audit and manage active user and API sessions
 * [angler admin settings](angler_admin_settings.md)	 - Inspect and update system-wide configuration settings
+* [angler admin vaults](angler_admin_vaults.md)	 - Configure, test, and audit Enterprise Secret Vault providers (Internal, Azure KV, AWS SM, HashiCorp Vault, GCP SM)
 

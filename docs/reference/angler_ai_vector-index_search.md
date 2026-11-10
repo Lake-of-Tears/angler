@@ -9,7 +9,12 @@ angler ai vector-index search <query> [flags]
 ### Options
 
 ```
-  -h, --help   help for search
+      --catalog string          Filter chunks to a specific catalog
+  -h, --help                    help for search
+      --schema string           Filter chunks to a specific schema
+      --score-threshold float   Minimum cosine similarity score threshold (0.0..1.0)
+      --table string            Filter chunks to a specific table
+      --top-k int               Maximum chunks to return (1..50) (default 5)
 ```
 
 ### Options inherited from parent commands
@@ -21,6 +26,7 @@ angler ai vector-index search <query> [flags]
       --force                 bypass confirmation prompts
       --json                  output results in JSON format
       --non-interactive       disable interactive prompts
+      --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
   -t, --token string          API authentication token
   -w, --workspace string      Lake of Tears workspace slug or name

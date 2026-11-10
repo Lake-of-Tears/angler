@@ -18,6 +18,7 @@ and run AI semantic searches directly from your terminal.
   -h, --help                  help for angler
       --json                  output results in JSON format
       --non-interactive       disable interactive prompts
+      --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
   -t, --token string          API authentication token
   -w, --workspace string      Lake of Tears workspace slug or name
@@ -41,8 +42,10 @@ and run AI semantic searches directly from your terminal.
 * [angler down](angler_down.md)	 - Stop and dock the Lake of Tears stack (alias: dock)
 * [angler fs](angler_fs.md)	 - Filesystem and storage management modeled after Databricks FS (alias: storage)
 * [angler jobs](angler_jobs.md)	 - Data pipelines, scheduled jobs, and workflow DAGs management (alias: pipelines)
-* [angler mcp](angler_mcp.md)	 - Model Context Protocol (MCP) Server and Developer Environment Integration
+* [angler lakeset](angler_lakeset.md)	 - Native Zero-Login Lakeset BI Studio, DuckDB Semantic Sync & Embedded Analytics (alias: bi)
+* [angler mcp](angler_mcp.md)	 - Model Context Protocol (MCP) Server, Remote Bridge, and Client Integration
 * [angler query](angler_query.md)	 - Execute SQL query against the data lake (alias: cast)
+* [angler secrets](angler_secrets.md)	 - Enterprise Secret Scopes, Encrypted Keys, and Scope ACLs Management
 * [angler sql](angler_sql.md)	 - Unified SQL statement execution, history, and AI assistance (aliases: query, cast)
 * [angler status](angler_status.md)	 - Check the health and status of the Lake of Tears instance
 * [angler tokens](angler_tokens.md)	 - Manage Personal Access Tokens (PATs) for Lake of Tears
@@ -50,6 +53,7 @@ and run AI semantic searches directly from your terminal.
 * [angler up](angler_up.md)	 - Launch local Lake of Tears stack (alias: launch)
 * [angler users](angler_users.md)	 - Lake of Tears User and Identity Management (IAM)
 * [angler version](angler_version.md)	 - Print the angler version
+* [angler webhooks](angler_webhooks.md)	 - Workspace Webhook Ingestion, HMAC Signing, Secret Rotation & Downstream Pipeline Triggering
 * [angler workspace](angler_workspace.md)	 - Workspace notebook and directory management modeled after Databricks Workspace
 * [angler workspaces](angler_workspaces.md)	 - Lake of Tears Multi-Tenant Workspace Provisioning and IAM Members
 

@@ -46,6 +46,7 @@ angler jobs [flags]
       --force                 bypass confirmation prompts
       --json                  output results in JSON format
       --non-interactive       disable interactive prompts
+      --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
   -t, --token string          API authentication token
   -w, --workspace string      Lake of Tears workspace slug or name
@@ -64,5 +65,10 @@ angler jobs [flags]
 * [angler jobs pause](angler_jobs_pause.md)	 - Pause scheduled execution of a pipeline
 * [angler jobs run](angler_jobs_run.md)	 - Immediately trigger a pipeline run
 * [angler jobs runs](angler_jobs_runs.md)	 - List, inspect, and manage historical pipeline runs
+* [angler jobs schedule](angler_jobs_schedule.md)	 - Update a pipeline's cron schedule or preset (@webhook, @daily, @hourly, etc.)
+* [angler jobs schedule-notebook](angler_jobs_schedule-notebook.md)	 - Create or update a scheduled notebook pipeline DAG
+* [angler jobs settings](angler_jobs_settings.md)	 - Inspect and update pipeline display metadata, timeline visibility, and webhook triggers
+* [angler jobs timeline](angler_jobs_timeline.md)	 - Render the 24-hour workspace pipeline execution schedule timeline
 * [angler jobs unpause](angler_jobs_unpause.md)	 - Unpause/resume scheduled execution of a pipeline
+* [angler jobs webhook](angler_jobs_webhook.md)	 - Enable, disable, and trigger native inbound pipeline webhooks
 

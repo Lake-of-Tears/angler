@@ -1,0 +1,35 @@
+## angler admin ai-providers dismiss-deprecation
+
+Clear active self-healing model deprecation fallback alerts
+
+```
+angler admin ai-providers dismiss-deprecation [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for dismiss-deprecation
+```
+
+### Options inherited from parent commands
+
+```
+      --config string         config file (default is $HOME/.angler/config.yaml)
+  -c, --context string        context profile to use
+      --endpoint string       Lake of Tears API endpoint
+      --force                 bypass confirmation prompts
+      --json                  output results in JSON format
+      --non-interactive       disable interactive prompts
+      --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
+  -o, --output string         output format: table, json, yaml, toon
+  -t, --token string          API authentication token
+  -w, --workspace string      Lake of Tears workspace slug or name
+      --workspace-id string   explicit Lake of Tears workspace ID
+  -y, --yes                   automatic yes to prompts; run non-interactively
+```
+
+### SEE ALSO
+
+* [angler admin ai-providers](angler_admin_ai-providers.md)	 - Configure, test, and discover models across Enterprise AI Providers (Vertex AI, Bedrock, OpenAI, Anthropic, Azure, Gemini)
+

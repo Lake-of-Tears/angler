@@ -16,7 +16,7 @@ angler ai chat [prompt] [flags]
 ```
   -h, --help           help for chat
   -m, --mode string    Query mode: auto, sql, rag, clarify (default "auto")
-      --model string   LLM model override (e.g. gemini-2.0-flash)
+      --model string   LLM model override (e.g. gemini-2.5-flash)
       --no-stream      Disable streaming and return complete response
       --stream         Stream response steps in real time
 ```
@@ -30,6 +30,7 @@ angler ai chat [prompt] [flags]
       --force                 bypass confirmation prompts
       --json                  output results in JSON format
       --non-interactive       disable interactive prompts
+      --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
   -t, --token string          API authentication token
   -w, --workspace string      Lake of Tears workspace slug or name

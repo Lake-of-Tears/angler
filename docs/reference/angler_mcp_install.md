@@ -1,6 +1,6 @@
 ## angler mcp install
 
-Automatically configure Claude Desktop, Antigravity, or Cursor for Angler MCP
+Configure MCP clients (Claude Desktop, Antigravity, Cursor) for stdio, SSE, or Streamable HTTP
 
 ```
 angler mcp install [flags]
@@ -12,6 +12,9 @@ angler mcp install [flags]
       --client string        Target client: 'claude', 'antigravity', or 'cursor' (default "claude")
       --config-path string   Explicit path to client configuration JSON file
   -h, --help                 help for install
+      --print                Print generated MCP configuration JSON to stdout without writing to disk
+      --remote               Use 'angler mcp serve --remote' when transport is stdio
+      --transport string     MCP transport mode: 'stdio', 'sse', or 'http' (default "stdio")
 ```
 
 ### Options inherited from parent commands
@@ -23,6 +26,7 @@ angler mcp install [flags]
       --force                 bypass confirmation prompts
       --json                  output results in JSON format
       --non-interactive       disable interactive prompts
+      --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
   -t, --token string          API authentication token
   -w, --workspace string      Lake of Tears workspace slug or name
@@ -32,5 +36,5 @@ angler mcp install [flags]
 
 ### SEE ALSO
 
-* [angler mcp](angler_mcp.md)	 - Model Context Protocol (MCP) Server and Developer Environment Integration
+* [angler mcp](angler_mcp.md)	 - Model Context Protocol (MCP) Server, Remote Bridge, and Client Integration
 

@@ -42,6 +42,7 @@ angler ai [flags]
       --force                 bypass confirmation prompts
       --json                  output results in JSON format
       --non-interactive       disable interactive prompts
+      --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
   -t, --token string          API authentication token
   -w, --workspace string      Lake of Tears workspace slug or name
@@ -54,6 +55,12 @@ angler ai [flags]
 * [angler](angler.md)	 - The official CLI for Lake of Tears data lakehouse
 * [angler ai chat](angler_ai_chat.md)	 - Chat with Lake of Tears Genie AI grounded in catalog tables and metadata
 * [angler ai context](angler_ai_context.md)	 - Inspect active system data context, grounding prompt, and registered UDFs
+* [angler ai embeddings](angler_ai_embeddings.md)	 - Generate vector embeddings using the active Lake of Tears AI provider
+* [angler ai enrich](angler_ai_enrich.md)	 - Auto-generate semantic business descriptions and column comments for a catalog, schema, or table
+* [angler ai models](angler_ai_models.md)	 - List virtual OpenAI-compatible models tailored to caller RBAC permissions
+* [angler ai retrieve](angler_ai_retrieve.md)	 - Execute RBAC-enforced vector similarity chunk retrieval without LLM synthesis
+* [angler ai table-from-prompt](angler_ai_table-from-prompt.md)	 - Generate a TOON table specification, column definitions, and DuckDB DDL from natural language
 * [angler ai test-key](angler_ai_test-key.md)	 - Validate configured LLM provider credentials (e.g. Gemini, OpenAI)
 * [angler ai vector-index](angler_ai_vector-index.md)	 - Manage and search table vector indexes and semantic embeddings
+* [angler ai vector-stores](angler_ai_vector-stores.md)	 - List and search RBAC-scoped OpenAI-compatible vector stores
 

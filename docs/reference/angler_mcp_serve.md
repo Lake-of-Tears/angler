@@ -4,8 +4,8 @@ Start native Model Context Protocol (MCP) server over standard I/O (stdio)
 
 ### Synopsis
 
-Starts a stdio-based MCP server providing LLM tools for Lake of Tears.
-Designed to be invoked by Claude Desktop, Antigravity, Cursor, Continue, or custom agents.
+Starts a stdio-based MCP server providing LLM tools and catalog resources for Lake of Tears.
+Pass --remote to bridge stdio JSON-RPC 2.0 messages directly to the remote /api/mcp endpoint.
 
 ```
 angler mcp serve [flags]
@@ -14,7 +14,8 @@ angler mcp serve [flags]
 ### Options
 
 ```
-  -h, --help   help for serve
+  -h, --help     help for serve
+      --remote   Bridge stdio JSON-RPC messages directly to the remote /api/mcp endpoint
 ```
 
 ### Options inherited from parent commands
@@ -26,6 +27,7 @@ angler mcp serve [flags]
       --force                 bypass confirmation prompts
       --json                  output results in JSON format
       --non-interactive       disable interactive prompts
+      --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
   -t, --token string          API authentication token
   -w, --workspace string      Lake of Tears workspace slug or name
@@ -35,5 +37,5 @@ angler mcp serve [flags]
 
 ### SEE ALSO
 
-* [angler mcp](angler_mcp.md)	 - Model Context Protocol (MCP) Server and Developer Environment Integration
+* [angler mcp](angler_mcp.md)	 - Model Context Protocol (MCP) Server, Remote Bridge, and Client Integration
 

@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: write
@@ -120,7 +120,7 @@ jobs:
       - quality
       - test
       - build
-    if: always()
+    if: ${{ !cancelled() }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
