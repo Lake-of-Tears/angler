@@ -203,6 +203,178 @@ func setupAIMockServer(t *testing.T) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
+func TestAINewGatewayAndAdminCommands(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/v1/retrieve", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":    true,
+			"query": "churn risk",
+			"total": 1,
+			"results": []map[string]any{
+				{
+					"chunk_id": "chk-101",
+					"content":  "Enterprise customer churn risk analysis",
+					"score":    0.94,
+					"metadata": map[string]any{
+						"workspace_slug": "default",
+						"catalog_slug":   "main",
+						"schema_slug":    "gold",
+						"table_slug":     "churn_notes",
+					},
+				},
+			},
+		})
+	})
+
+	mux.HandleFunc("/api/v1/vector_stores", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"object": "list",
+			"data": []map[string]any{
+				{"id": "vs_default_main", "object": "vector_store", "name": "default/main", "status": "completed", "workspace_slug": "default", "catalog_slug": "main"},
+			},
+		})
+	})
+
+	mux.HandleFunc("/api/v1/vector_stores/vs_default_main/search", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"object":       "vector_store.search_results.page",
+			"search_query": "churn",
+			"data": []map[string]any{
+				{
+					"file_id":  "file_1",
+					"filename": "main.gold.churn_notes",
+					"score":    0.91,
+					"content": []map[string]string{
+						{"type": "text", "text": "Churn note snippet"},
+					},
+				},
+			},
+		})
+	})
+
+	mux.HandleFunc("/api/v1/models", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"object": "list",
+			"data": []map[string]any{
+				{"id": "lot-genie", "object": "model", "owned_by": "lake-of-tears"},
+				{"id": "lot-rag:default", "object": "model", "owned_by": "lake-of-tears"},
+			},
+		})
+	})
+
+	mux.HandleFunc("/api/v1/embeddings", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"object": "list",
+			"model":  "text-embedding-004",
+			"data": []map[string]any{
+				{"object": "embedding", "index": 0, "embedding": []float64{0.1, 0.2, 0.3}},
+			},
+		})
+	})
+
+	mux.HandleFunc("/api/ai/table-from-prompt", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":          true,
+			"table_name":  "churn_predictions",
+			"description": "Predicted customer churn scores",
+			"sql":         "CREATE TABLE gold.churn_predictions AS SELECT 1 AS id",
+			"row_count":   25,
+		})
+	})
+
+	mux.HandleFunc("/api/ai/generate-description", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":          true,
+			"description": "Enriched semantic table description for executive reporting",
+			"columns": map[string]string{
+				"id": "Primary identifier",
+			},
+		})
+	})
+
+	mux.HandleFunc("/api/admin/ai-provider", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"active_provider": "vertex",
+			"providers": []map[string]any{
+				{"id": "vertex", "label": "Google Cloud Vertex AI", "chat_model": "gemini-2.5-flash", "embed_model": "text-embedding-005"},
+				{"id": "gemini", "label": "Google Gemini API", "chat_model": "gemini-2.5-flash", "embed_model": "text-embedding-004"},
+			},
+		})
+	})
+
+	mux.HandleFunc("/api/admin/vaults", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{"provider": "internal", "display_name": "PostgreSQL Encrypted Vault", "is_configured": true},
+			{"provider": "hashicorp_vault", "display_name": "HashiCorp Vault", "is_configured": true},
+		})
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// 1. ai retrieve
+	resetAIFlags()
+	stdout, stderr, code := executeCLIForTest(t, true, "--endpoint", srv.URL, "ai", "retrieve", "churn risk", "--top-k", "3")
+	if code != ui.ExitOK {
+		t.Fatalf("ai retrieve failed (%d): %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "churn_notes") {
+		t.Fatalf("expected churn_notes in retrieve output: %s", stdout)
+	}
+
+	// 2. ai vector-stores list & search
+	resetAIFlags()
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", srv.URL, "ai", "vector-stores", "list")
+	if code != ui.ExitOK || !strings.Contains(stdout, "vs_default_main") {
+		t.Fatalf("ai vector-stores list failed (%d): %s / %s", code, stderr, stdout)
+	}
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", srv.URL, "ai", "vector-stores", "search", "vs_default_main", "churn")
+	if code != ui.ExitOK || !strings.Contains(stdout, "Churn note snippet") {
+		t.Fatalf("ai vector-stores search failed (%d): %s / %s", code, stderr, stdout)
+	}
+
+	// 3. ai models
+	resetAIFlags()
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", srv.URL, "ai", "models")
+	if code != ui.ExitOK || !strings.Contains(stdout, "lot-genie") {
+		t.Fatalf("ai models failed (%d): %s / %s", code, stderr, stdout)
+	}
+
+	// 4. ai embeddings
+	resetAIFlags()
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", srv.URL, "ai", "embeddings", "lakehouse vector test")
+	if code != ui.ExitOK || !strings.Contains(stdout, "text-embedding-004") {
+		t.Fatalf("ai embeddings failed (%d): %s / %s", code, stderr, stdout)
+	}
+
+	// 5. ai table-from-prompt
+	resetAIFlags()
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", srv.URL, "ai", "table-from-prompt", "Generate churn predictions", "--schema", "gold")
+	if code != ui.ExitOK || !strings.Contains(stdout, "churn_predictions") {
+		t.Fatalf("ai table-from-prompt failed (%d): %s / %s", code, stderr, stdout)
+	}
+
+	// 6. ai enrich
+	resetAIFlags()
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", srv.URL, "ai", "enrich", "--catalog", "main", "--schema", "gold", "--table", "churn_predictions")
+	if code != ui.ExitOK || !strings.Contains(stdout, "Enriched semantic table description") {
+		t.Fatalf("ai enrich failed (%d): %s / %s", code, stderr, stdout)
+	}
+
+	// 7. admin ai-providers list
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", srv.URL, "admin", "ai-providers", "list")
+	if code != ui.ExitOK || !strings.Contains(stdout, "Google Cloud Vertex AI") {
+		t.Fatalf("admin ai-providers list failed (%d): %s / %s", code, stderr, stdout)
+	}
+
+	// 8. admin vaults list
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", srv.URL, "admin", "vaults", "list")
+	if code != ui.ExitOK || !strings.Contains(stdout, "hashicorp_vault") {
+		t.Fatalf("admin vaults list failed (%d): %s / %s", code, stderr, stdout)
+	}
+}
+
 func TestAIChatSingleTurn(t *testing.T) {
 	ts := setupAIMockServer(t)
 	defer ts.Close()

@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -12,14 +13,30 @@ import (
 )
 
 var (
-	jobsFormat       string
-	jobsLimit        int
-	jobsWait         bool
-	jobsTimeout      time.Duration
-	jobsPollInterval time.Duration
-	jobsConf         string
-	jobsForce        bool
-	jobsTryNumber    int
+	jobsFormat              string
+	jobsLimit               int
+	jobsWait                bool
+	jobsTimeout             time.Duration
+	jobsPollInterval        time.Duration
+	jobsConf                string
+	jobsForce               bool
+	jobsTryNumber           int
+	jobsSettingsLabel       string
+	jobsSettingsColor       string
+	jobsSettingsDesc        string
+	jobsSettingsTimelineVis bool
+	jobsSettingsWebhookEn   bool
+	jobsWebhookPayload      string
+	jobsWebhookPayloadFile  string
+	jobsWebhookSecret       string
+	jobsWebhookHMAC         bool
+	jobsNbSchedule          string
+	jobsNbTitle             string
+	jobsNbParams            string
+	jobsNbCPU               string
+	jobsNbMemory            string
+	jobsTimelineDate        string
+	jobsTimelineTZ          string
 )
 
 var jobsCmd = &cobra.Command{
@@ -105,6 +122,9 @@ func runJobsList(cmd *cobra.Command, args []string) error {
 			if sched == "" {
 				sched = "Manual"
 			}
+			if p.WebhookEnabled {
+				sched += " (⚡ Webhook)"
+			}
 
 			rows[i] = []string{
 				p.DagID,
@@ -156,6 +176,10 @@ func runJobsGet(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Fprintf(ui.OutWriter, "  Schedule:    %s\n", sched)
 		fmt.Fprintf(ui.OutWriter, "  Paused:      %v\n", detail.IsPaused)
+		fmt.Fprintf(ui.OutWriter, "  Webhook:     %v\n", detail.WebhookEnabled)
+		if detail.WebhookURL != "" {
+			fmt.Fprintf(ui.OutWriter, "  Webhook URL: %s\n", detail.WebhookURL)
+		}
 		if len(detail.Tags) > 0 {
 			fmt.Fprintf(ui.OutWriter, "  Tags:        %s\n", strings.Join(detail.Tags, ", "))
 		}
@@ -517,6 +541,269 @@ var jobsRunsLogsCmd = &cobra.Command{
 	},
 }
 
+// ── Pipeline Settings Subcommands (`angler jobs settings`) ──────────────────
+
+var jobsSettingsCmd = &cobra.Command{
+	Use:   "settings",
+	Short: "Inspect and update pipeline display metadata, timeline visibility, and webhook triggers",
+}
+
+var jobsSettingsGetCmd = &cobra.Command{
+	Use:   "get <job_id>",
+	Short: "Retrieve pipeline display label, color, timeline visibility, and webhook status",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dagID := args[0]
+		c := getClient()
+		st, err := c.GetPipelineSettings(dagID)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(st, func() {
+			ui.PrintSuccess("Pipeline Settings: %s (%s)", st.DisplayLabel, st.DagID)
+			fmt.Fprintf(ui.OutWriter, "  Display Label:       %s\n", st.DisplayLabel)
+			fmt.Fprintf(ui.OutWriter, "  Color Hex:           %s\n", st.ColorHex)
+			if st.Description != "" {
+				fmt.Fprintf(ui.OutWriter, "  Description:         %s\n", st.Description)
+			}
+			fmt.Fprintf(ui.OutWriter, "  Visible on Timeline: %v\n", st.IsVisibleOnTimeline)
+			fmt.Fprintf(ui.OutWriter, "  Webhook Enabled:     %v\n", st.WebhookEnabled)
+			fmt.Fprintf(ui.OutWriter, "  Webhook Endpoint:    %s%s\n", strings.TrimRight(c.Endpoint, "/"), st.WebhookURL)
+		})
+	},
+}
+
+var jobsSettingsUpdateCmd = &cobra.Command{
+	Use:   "update <job_id>",
+	Short: "Update pipeline metadata and toggle native webhook triggers",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dagID := args[0]
+		c := getClient()
+
+		var req client.PipelineSettingsUpdateRequest
+		if cmd.Flags().Changed("label") {
+			req.DisplayLabel = &jobsSettingsLabel
+		}
+		if cmd.Flags().Changed("color") {
+			req.ColorHex = &jobsSettingsColor
+		}
+		if cmd.Flags().Changed("description") {
+			req.Description = &jobsSettingsDesc
+		}
+		if cmd.Flags().Changed("timeline-visible") {
+			req.IsVisibleOnTimeline = &jobsSettingsTimelineVis
+		}
+		if cmd.Flags().Changed("webhook-enabled") {
+			req.WebhookEnabled = &jobsSettingsWebhookEn
+		}
+
+		st, err := c.UpdatePipelineSettings(dagID, req)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(st, func() {
+			ui.PrintSuccess("Updated settings for pipeline '%s'", st.DagID)
+			fmt.Fprintf(ui.OutWriter, "  Display Label:       %s\n", st.DisplayLabel)
+			fmt.Fprintf(ui.OutWriter, "  Color Hex:           %s\n", st.ColorHex)
+			fmt.Fprintf(ui.OutWriter, "  Visible on Timeline: %v\n", st.IsVisibleOnTimeline)
+			fmt.Fprintf(ui.OutWriter, "  Webhook Enabled:     %v\n", st.WebhookEnabled)
+			fmt.Fprintf(ui.OutWriter, "  Webhook Endpoint:    %s%s\n", strings.TrimRight(c.Endpoint, "/"), st.WebhookURL)
+		})
+	},
+}
+
+// ── Pipeline Webhook Subcommands (`angler jobs webhook`) ────────────────────
+
+var jobsWebhookCmd = &cobra.Command{
+	Use:   "webhook",
+	Short: "Enable, disable, and trigger native inbound pipeline webhooks",
+}
+
+func runTogglePipelineWebhook(dagID string, enabled bool) error {
+	c := getClient()
+	st, err := c.UpdatePipelineSettings(dagID, client.PipelineSettingsUpdateRequest{
+		WebhookEnabled: &enabled,
+	})
+	if err != nil {
+		return err
+	}
+
+	fullURL := strings.TrimRight(c.Endpoint, "/") + st.WebhookURL
+	return ui.RenderOutput(st, func() {
+		if enabled {
+			ui.PrintSuccess("Enabled inbound webhook trigger for pipeline '%s'", dagID)
+			fmt.Fprintf(ui.OutWriter, "  Webhook URL: %s\n", fullURL)
+			fmt.Fprintf(ui.OutWriter, "  cURL Sample: curl -X POST %q -H \"X-Lake-Webhook-Secret: <SECRET>\" -H \"Content-Type: application/json\" -d '{\"event\":\"sync\"}'\n", fullURL)
+		} else {
+			ui.PrintSuccess("Disabled inbound webhook trigger for pipeline '%s'", dagID)
+		}
+	})
+}
+
+var jobsWebhookEnableCmd = &cobra.Command{
+	Use:   "enable <job_id>",
+	Short: "Enable native inbound webhook trigger for a pipeline and print its endpoint URL",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runTogglePipelineWebhook(args[0], true)
+	},
+}
+
+var jobsWebhookDisableCmd = &cobra.Command{
+	Use:   "disable <job_id>",
+	Short: "Disable native inbound webhook trigger for a pipeline",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runTogglePipelineWebhook(args[0], false)
+	},
+}
+
+var jobsWebhookTriggerCmd = &cobra.Command{
+	Use:   "trigger <job_id>",
+	Short: "Trigger a pipeline via its native inbound webhook endpoint",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dagID := args[0]
+		var rawPayload []byte
+		if jobsWebhookPayloadFile != "" {
+			b, err := os.ReadFile(jobsWebhookPayloadFile)
+			if err != nil {
+				return fmt.Errorf("failed to read payload file %s: %w", jobsWebhookPayloadFile, err)
+			}
+			rawPayload = b
+		} else if jobsWebhookPayload != "" {
+			rawPayload = []byte(jobsWebhookPayload)
+		} else {
+			rawPayload = []byte(`{}`)
+		}
+
+		c := getClient()
+		resp, err := c.TriggerPipelineWebhook(dagID, rawPayload, jobsWebhookSecret, jobsWebhookHMAC)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(resp, func() {
+			ui.PrintSuccess("Webhook triggered pipeline '%s' (Run ID: %s, State: %s)", resp.DagID, resp.DagRunID, strings.ToUpper(resp.State))
+			fmt.Fprintf(ui.OutWriter, "  Event ID:   %s\n", resp.EventID)
+			fmt.Fprintf(ui.OutWriter, "  DAG Run ID: %s\n", resp.DagRunID)
+			fmt.Fprintf(ui.OutWriter, "  Workspace:  %s\n", resp.WorkspaceSlug)
+		})
+	},
+}
+
+// ── Schedule & Timeline Subcommands (`schedule`, `schedule-notebook`, `timeline`) ──
+
+var jobsScheduleCmd = &cobra.Command{
+	Use:   "schedule <job_id> <schedule_interval>",
+	Short: "Update a pipeline's cron schedule or preset (@webhook, @daily, @hourly, etc.)",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dagID := args[0]
+		sched := args[1]
+
+		c := getClient()
+		res, err := c.UpdatePipelineSchedule(dagID, sched)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			ui.PrintSuccess("Updated schedule for pipeline '%s' to '%s'", dagID, sched)
+		})
+	},
+}
+
+var jobsScheduleNotebookCmd = &cobra.Command{
+	Use:   "schedule-notebook <notebook_path>",
+	Short: "Create or update a scheduled notebook pipeline DAG",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		nbPath := args[0]
+		if strings.TrimSpace(jobsNbSchedule) == "" {
+			return ui.NewUsageError(fmt.Errorf("--schedule is required (e.g. '@daily' or '0 */6 * * *')"))
+		}
+
+		var paramsMap map[string]any
+		if strings.TrimSpace(jobsNbParams) != "" {
+			if err := json.Unmarshal([]byte(jobsNbParams), &paramsMap); err != nil {
+				return ui.NewUsageError(fmt.Errorf("invalid JSON for --params: %w", err))
+			}
+		}
+
+		var computeRes map[string]string
+		if jobsNbCPU != "" || jobsNbMemory != "" {
+			computeRes = make(map[string]string)
+			if jobsNbCPU != "" {
+				computeRes["cpu"] = jobsNbCPU
+			}
+			if jobsNbMemory != "" {
+				computeRes["memory"] = jobsNbMemory
+			}
+		}
+
+		c := getClient()
+		res, err := c.ScheduleNotebook(client.ScheduleNotebookRequest{
+			NotebookPath:     nbPath,
+			ScheduleInterval: jobsNbSchedule,
+			PipelineTitle:    jobsNbTitle,
+			Parameters:       paramsMap,
+			ComputeResources: computeRes,
+		})
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			ui.PrintSuccess("Scheduled notebook '%s' as pipeline '%s' (Schedule: %s)", nbPath, res.DagID, res.ScheduleInterval)
+		})
+	},
+}
+
+var jobsTimelineCmd = &cobra.Command{
+	Use:   "timeline",
+	Short: "Render the 24-hour workspace pipeline execution schedule timeline",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c := getClient()
+		res, err := c.GetPipelineTimeline(jobsTimelineDate, jobsTimelineTZ)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			ui.PrintSuccess("24-Hour Pipeline Timeline (Date: %s, TZ: %s)", res.Date, res.Timezone)
+			if len(res.Pipelines) == 0 && len(res.Events) == 0 {
+				ui.PrintInfo("No scheduled pipeline runs on timeline for %s.", res.Date)
+				return
+			}
+
+			if len(res.Pipelines) > 0 {
+				headers := []string{"PIPELINE", "SCHEDULE", "COLOR", "RUNS / SLOTS"}
+				var rows [][]string
+				for _, p := range res.Pipelines {
+					dagID := fmt.Sprintf("%v", p["dag_id"])
+					if lbl, ok := p["display_label"].(string); ok && lbl != "" {
+						dagID = fmt.Sprintf("%s (%s)", lbl, dagID)
+					}
+					sched := fmt.Sprintf("%v", p["schedule_interval"])
+					color := fmt.Sprintf("%v", p["color_hex"])
+					slotCount := 0
+					if runs, ok := p["runs"].([]any); ok {
+						slotCount = len(runs)
+					} else if slots, ok := p["slots"].([]any); ok {
+						slotCount = len(slots)
+					}
+					rows = append(rows, []string{dagID, sched, color, fmt.Sprintf("%d", slotCount)})
+				}
+				fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+			}
+		})
+	},
+}
+
 func init() {
 	// run flags
 	jobsRunCmd.Flags().BoolVar(&jobsWait, "wait", false, "Wait for run completion before exiting")
@@ -537,6 +824,38 @@ func init() {
 	// runs list flags
 	jobsRunsListCmd.Flags().IntVarP(&jobsLimit, "limit", "l", 25, "Maximum number of past runs to retrieve")
 
+	// settings update flags
+	jobsSettingsUpdateCmd.Flags().StringVar(&jobsSettingsLabel, "label", "", "Pipeline display label")
+	jobsSettingsUpdateCmd.Flags().StringVar(&jobsSettingsColor, "color", "", "Pipeline timeline hex color (e.g. #8b5cf6)")
+	jobsSettingsUpdateCmd.Flags().StringVar(&jobsSettingsDesc, "description", "", "Pipeline description")
+	jobsSettingsUpdateCmd.Flags().BoolVar(&jobsSettingsTimelineVis, "timeline-visible", true, "Show or hide pipeline on 24-hour timeline")
+	jobsSettingsUpdateCmd.Flags().BoolVar(&jobsSettingsWebhookEn, "webhook-enabled", false, "Enable or disable inbound webhook triggers")
+
+	// webhook trigger flags
+	jobsWebhookTriggerCmd.Flags().StringVarP(&jobsWebhookPayload, "payload", "d", "", "JSON payload string to send to webhook")
+	jobsWebhookTriggerCmd.Flags().StringVarP(&jobsWebhookPayloadFile, "payload-file", "f", "", "Path to JSON payload file")
+	jobsWebhookTriggerCmd.Flags().StringVar(&jobsWebhookSecret, "secret", "", "Workspace webhook secret token (auto-resolved if omitted)")
+	jobsWebhookTriggerCmd.Flags().BoolVar(&jobsWebhookHMAC, "hmac", false, "Sign payload with HMAC-SHA256 (X-Hub-Signature-256)")
+
+	// schedule-notebook flags
+	jobsScheduleNotebookCmd.Flags().StringVar(&jobsNbSchedule, "schedule", "", "Cron expression or preset schedule (required)")
+	jobsScheduleNotebookCmd.Flags().StringVar(&jobsNbTitle, "title", "", "Display title for the scheduled notebook pipeline")
+	jobsScheduleNotebookCmd.Flags().StringVar(&jobsNbParams, "params", "", "JSON parameters dictionary for notebook execution")
+	jobsScheduleNotebookCmd.Flags().StringVar(&jobsNbCPU, "cpu", "", "CPU resource limit (e.g. '2')")
+	jobsScheduleNotebookCmd.Flags().StringVar(&jobsNbMemory, "memory", "", "Memory resource limit (e.g. '4Gi')")
+
+	// timeline flags
+	jobsTimelineCmd.Flags().StringVar(&jobsTimelineDate, "date", "", "Target calendar date (YYYY-MM-DD)")
+	jobsTimelineCmd.Flags().StringVar(&jobsTimelineTZ, "tz", "UTC", "IANA timezone (default UTC)")
+
+	// Subcommands under jobs settings & webhook
+	jobsSettingsCmd.AddCommand(jobsSettingsGetCmd)
+	jobsSettingsCmd.AddCommand(jobsSettingsUpdateCmd)
+
+	jobsWebhookCmd.AddCommand(jobsWebhookEnableCmd)
+	jobsWebhookCmd.AddCommand(jobsWebhookDisableCmd)
+	jobsWebhookCmd.AddCommand(jobsWebhookTriggerCmd)
+
 	// Subcommands under jobs runs
 	jobsRunsCmd.AddCommand(jobsRunsListCmd)
 	jobsRunsCmd.AddCommand(jobsRunsGetCmd)
@@ -553,6 +872,11 @@ func init() {
 	jobsCmd.AddCommand(jobsDeleteCmd)
 	jobsCmd.AddCommand(jobsLogsCmd)
 	jobsCmd.AddCommand(jobsRunsCmd)
+	jobsCmd.AddCommand(jobsSettingsCmd)
+	jobsCmd.AddCommand(jobsWebhookCmd)
+	jobsCmd.AddCommand(jobsScheduleCmd)
+	jobsCmd.AddCommand(jobsScheduleNotebookCmd)
+	jobsCmd.AddCommand(jobsTimelineCmd)
 
 	rootCmd.AddCommand(jobsCmd)
 }

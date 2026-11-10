@@ -1,6 +1,10 @@
 package client
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -40,6 +44,8 @@ type Pipeline struct {
 	BundleVersion       string             `json:"bundle_version,omitempty"`
 	LastRun             *PipelineLatestRun `json:"last_run,omitempty"`
 	IsVisibleOnTimeline bool               `json:"is_visible_on_timeline,omitempty"`
+	WebhookEnabled      bool               `json:"webhook_enabled"`
+	WebhookURL          string             `json:"webhook_url,omitempty"`
 }
 
 // PipelineListResponse represents the pipeline collection returned by /api/pipelines.
@@ -63,6 +69,8 @@ type PipelineDetail struct {
 	Tasks            []map[string]any   `json:"tasks,omitempty"`
 	LastRun          *PipelineLatestRun `json:"last_run,omitempty"`
 	Settings         map[string]any     `json:"settings,omitempty"`
+	WebhookEnabled   bool               `json:"webhook_enabled"`
+	WebhookURL       string             `json:"webhook_url,omitempty"`
 }
 
 // PipelineTriggerResponse represents the response when initiating a run.
@@ -413,4 +421,424 @@ func (c *Client) DeletePipeline(dagID string) error {
 	}
 
 	return nil
+}
+
+// ── Pipeline Settings, Webhooks, Schedule & Timeline ─────────────────────────
+
+type PipelineSettings struct {
+	DagID               string   `json:"dag_id"`
+	ColorHex            string   `json:"color_hex"`
+	DisplayLabel        string   `json:"display_label"`
+	Description         string   `json:"description"`
+	IsVisibleOnTimeline bool     `json:"is_visible_on_timeline"`
+	WebhookEnabled      bool     `json:"webhook_enabled"`
+	WebhookURL          string   `json:"webhook_url"`
+	Palette             []string `json:"palette,omitempty"`
+}
+
+type PipelineSettingsUpdateRequest struct {
+	ColorHex            *string `json:"color_hex,omitempty"`
+	DisplayLabel        *string `json:"display_label,omitempty"`
+	Description         *string `json:"description,omitempty"`
+	IsVisibleOnTimeline *bool   `json:"is_visible_on_timeline,omitempty"`
+	WebhookEnabled      *bool   `json:"webhook_enabled,omitempty"`
+}
+
+type ScheduleNotebookRequest struct {
+	NotebookPath     string            `json:"notebook_path"`
+	ScheduleInterval string            `json:"schedule_interval"`
+	PipelineTitle    string            `json:"pipeline_title,omitempty"`
+	Parameters       map[string]any    `json:"parameters,omitempty"`
+	ComputeResources map[string]string `json:"compute_resources,omitempty"`
+}
+
+type ScheduleNotebookResponse struct {
+	DagID            string `json:"dag_id"`
+	PipelineName     string `json:"pipeline_name,omitempty"`
+	NotebookPath     string `json:"notebook_path"`
+	ScheduleInterval string `json:"schedule_interval"`
+	Status           string `json:"status,omitempty"`
+	Message          string `json:"message,omitempty"`
+}
+
+type PipelineTimelineResponse struct {
+	Workspace string           `json:"workspace,omitempty"`
+	Date      string           `json:"date"`
+	Timezone  string           `json:"timezone"`
+	Pipelines []map[string]any `json:"pipelines,omitempty"`
+	Events    []map[string]any `json:"events,omitempty"`
+}
+
+type PipelineWebhookTriggerResponse struct {
+	Status        string `json:"status"`
+	DagID         string `json:"dag_id"`
+	DagRunID      string `json:"dag_run_id"`
+	State         string `json:"state"`
+	ExecutionDate string `json:"execution_date,omitempty"`
+	WorkspaceSlug string `json:"workspace_slug"`
+	EventID       string `json:"event_id"`
+}
+
+type WebhookSecretResponse struct {
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceSlug string `json:"workspace_slug"`
+	WebhookSecret string `json:"webhook_secret"`
+	WebhookURL    string `json:"webhook_url"`
+}
+
+type WebhookIngestResponse struct {
+	Status            string  `json:"status"`
+	EventID           string  `json:"event_id"`
+	WorkspaceSlug     string  `json:"workspace_slug"`
+	ReceivedAt        string  `json:"received_at"`
+	TriggeredPipeline *string `json:"triggered_pipeline,omitempty"`
+	DagRunID          *string `json:"dag_run_id,omitempty"`
+}
+
+func (c *Client) GetPipelineSettings(dagID string) (*PipelineSettings, error) {
+	cleanID := url.PathEscape(strings.TrimSpace(dagID))
+	req, err := c.newRequest(http.MethodGet, fmt.Sprintf("/api/v1/pipelines/%s/settings", cleanID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch pipeline settings: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("get pipeline settings error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var res PipelineSettings
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("failed to decode pipeline settings: %w", err)
+	}
+	return &res, nil
+}
+
+func (c *Client) UpdatePipelineSettings(dagID string, reqPayload PipelineSettingsUpdateRequest) (*PipelineSettings, error) {
+	cleanID := url.PathEscape(strings.TrimSpace(dagID))
+	req, err := c.newRequest(http.MethodPatch, fmt.Sprintf("/api/v1/pipelines/%s/settings", cleanID), reqPayload)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update pipeline settings: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("update pipeline settings error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var res PipelineSettings
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("failed to decode updated pipeline settings: %w", err)
+	}
+	if res.WebhookURL == "" {
+		ws := c.Workspace
+		if ws == "" {
+			ws = "default"
+		}
+		res.WebhookURL = fmt.Sprintf("/api/v1/pipelines/%s/%s/webhook", ws, dagID)
+	}
+	return &res, nil
+}
+
+func (c *Client) UpdatePipelineSchedule(dagID, scheduleInterval string) (map[string]any, error) {
+	cleanID := url.PathEscape(strings.TrimSpace(dagID))
+	req, err := c.newRequest(
+		http.MethodPatch,
+		fmt.Sprintf("/api/v1/pipelines/%s/schedule", cleanID),
+		map[string]string{"schedule_interval": scheduleInterval},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update pipeline schedule: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("update pipeline schedule error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var res map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("failed to decode schedule response: %w", err)
+	}
+	return res, nil
+}
+
+func (c *Client) ScheduleNotebook(reqPayload ScheduleNotebookRequest) (*ScheduleNotebookResponse, error) {
+	req, err := c.newRequest(http.MethodPost, "/api/v1/pipelines/schedule-notebook", reqPayload)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to schedule notebook: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("schedule notebook error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var res ScheduleNotebookResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("failed to decode schedule notebook response: %w", err)
+	}
+	return &res, nil
+}
+
+func (c *Client) GetPipelineTimeline(dateStr, tz string) (*PipelineTimelineResponse, error) {
+	params := url.Values{}
+	if dateStr != "" {
+		params.Set("date", dateStr)
+	}
+	if tz != "" {
+		params.Set("tz", tz)
+	}
+
+	path := "/api/v1/pipelines/timeline"
+	if len(params) > 0 {
+		path += "?" + params.Encode()
+	}
+
+	req, err := c.newRequest(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch pipeline timeline: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("get pipeline timeline error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var res PipelineTimelineResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("failed to decode pipeline timeline: %w", err)
+	}
+	return &res, nil
+}
+
+func computeWebhookHMAC(secret string, rawBody []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(rawBody)
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func (c *Client) resolveWorkspaceSlug() string {
+	if c.Workspace != "" {
+		return c.Workspace
+	}
+	return "default"
+}
+
+func (c *Client) TriggerPipelineWebhook(dagID string, rawPayload []byte, secret string, useHMAC bool) (*PipelineWebhookTriggerResponse, error) {
+	ws := c.resolveWorkspaceSlug()
+	if secret == "" {
+		secResp, err := c.GetWebhookSecret(ws)
+		if err == nil && secResp != nil {
+			secret = secResp.WebhookSecret
+		}
+	}
+
+	if len(rawPayload) == 0 {
+		rawPayload = []byte(`{}`)
+	}
+
+	path := fmt.Sprintf("/api/v1/pipelines/%s/%s/webhook", url.PathEscape(ws), url.PathEscape(strings.TrimSpace(dagID)))
+	reqURL := fmt.Sprintf("%s%s", c.Endpoint, path)
+	req, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewReader(rawPayload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "angler-cli")
+	req.Header.Set("X-Workspace-Slug", ws)
+
+	if secret != "" {
+		if useHMAC {
+			req.Header.Set("X-Hub-Signature-256", computeWebhookHMAC(secret, rawPayload))
+		} else {
+			req.Header.Set("X-Lake-Webhook-Secret", secret)
+		}
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to trigger pipeline webhook: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("pipeline webhook trigger error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var res PipelineWebhookTriggerResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("failed to decode pipeline webhook response: %w", err)
+	}
+	return &res, nil
+}
+
+func (c *Client) doWebhookEndpointRequest(method, subPath string, body any) (*http.Response, error) {
+	primary := "/api/v1/webhooks" + subPath
+	req, err := c.newRequest(method, primary, body)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		_ = resp.Body.Close()
+		fallback := "/api/v1/ingest/webhooks" + subPath
+		req2, err2 := c.newRequest(method, fallback, body)
+		if err2 != nil {
+			return nil, err2
+		}
+		return c.HTTPClient.Do(req2)
+	}
+	return resp, nil
+}
+
+func (c *Client) GetWebhookSecret(workspaceSlug string) (*WebhookSecretResponse, error) {
+	if workspaceSlug == "" {
+		workspaceSlug = c.resolveWorkspaceSlug()
+	}
+	resp, err := c.doWebhookEndpointRequest(http.MethodGet, fmt.Sprintf("/%s/secret", url.PathEscape(workspaceSlug)), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch webhook secret: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("get webhook secret error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var res WebhookSecretResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("failed to decode webhook secret: %w", err)
+	}
+	return &res, nil
+}
+
+func (c *Client) RegenerateWebhookSecret(workspaceSlug string) (*WebhookSecretResponse, error) {
+	if workspaceSlug == "" {
+		workspaceSlug = c.resolveWorkspaceSlug()
+	}
+	resp, err := c.doWebhookEndpointRequest(http.MethodPost, fmt.Sprintf("/%s/secret/regenerate", url.PathEscape(workspaceSlug)), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to regenerate webhook secret: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("regenerate webhook secret error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var res WebhookSecretResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("failed to decode regenerated webhook secret: %w", err)
+	}
+	return &res, nil
+}
+
+func (c *Client) IngestWebhookEvent(workspaceSlug string, rawPayload []byte, triggerPipeline, secret string, useHMAC bool) (*WebhookIngestResponse, error) {
+	if workspaceSlug == "" {
+		workspaceSlug = c.resolveWorkspaceSlug()
+	}
+	if secret == "" {
+		secResp, err := c.GetWebhookSecret(workspaceSlug)
+		if err == nil && secResp != nil {
+			secret = secResp.WebhookSecret
+		}
+	}
+	if len(rawPayload) == 0 {
+		rawPayload = []byte(`{}`)
+	}
+
+	buildReq := func(prefix string) (*http.Request, error) {
+		relPath := fmt.Sprintf("%s/%s", prefix, url.PathEscape(workspaceSlug))
+		if triggerPipeline != "" {
+			relPath += "?trigger_pipeline=" + url.QueryEscape(triggerPipeline)
+		}
+		req, err := http.NewRequest(http.MethodPost, c.Endpoint+relPath, bytes.NewReader(rawPayload))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "angler-cli")
+		req.Header.Set("X-Workspace-Slug", workspaceSlug)
+		if triggerPipeline != "" {
+			req.Header.Set("X-Lake-Trigger-Pipeline", triggerPipeline)
+		}
+		if secret != "" {
+			if useHMAC {
+				req.Header.Set("X-Hub-Signature-256", computeWebhookHMAC(secret, rawPayload))
+			} else {
+				req.Header.Set("X-Lake-Webhook-Secret", secret)
+			}
+		}
+		return req, nil
+	}
+
+	req, err := buildReq("/api/v1/webhooks")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send webhook event: %w", err)
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		_ = resp.Body.Close()
+		req2, err2 := buildReq("/api/v1/ingest/webhooks")
+		if err2 != nil {
+			return nil, err2
+		}
+		resp, err = c.HTTPClient.Do(req2)
+		if err != nil {
+			return nil, fmt.Errorf("failed to send webhook event: %w", err)
+		}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("webhook ingest error (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	var res WebhookIngestResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("failed to decode webhook ingest response: %w", err)
+	}
+	return &res, nil
 }

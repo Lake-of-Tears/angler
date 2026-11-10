@@ -376,6 +376,95 @@ func TestE2E_MCPStdio(t *testing.T) {
 	}
 }
 
+func TestE2E_LakesetSecretsWebhooksAIMCP(t *testing.T) {
+	homeDir := t.TempDir()
+
+	// 1. Lakeset (#39)
+	stdout, stderr, err := runCLI(t, homeDir, "lakeset", "status", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "DuckDB Lakehouse") {
+		t.Fatalf("lakeset status E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "bi", "guest-token", "--raw",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || strings.TrimSpace(stdout) != "lot_guest_jwt_e2e_123" {
+		t.Fatalf("bi guest-token --raw E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	// 2. Secrets & Admin Vaults (#40)
+	stdout, stderr, err = runCLI(t, homeDir, "secrets", "get", "prod-secrets", "db_password", "--raw",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || strings.TrimSpace(stdout) != "e2e-super-secret-value" {
+		t.Fatalf("secrets get --raw E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "admin", "vaults", "list", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "hashicorp_vault") {
+		t.Fatalf("admin vaults list E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	// 3. Webhooks & Pipeline Webhooks (#41)
+	stdout, stderr, err = runCLI(t, homeDir, "webhooks", "send", "--payload", `{"sensor":1}`, "--trigger-pipeline", "telemetry_etl", "--hmac", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "evt-e2e-1") {
+		t.Fatalf("webhooks send E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "jobs", "webhook", "trigger", "telemetry_etl", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "webhook__e2e_pipeline_run") {
+		t.Fatalf("jobs webhook trigger E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	// 4. AI Gateway, Retrieval & Impersonation (#42)
+	stdout, stderr, err = runCLI(t, homeDir, "ai", "retrieve", "telemetry", "--on-behalf-of", "worker@lake.io", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "E2E telemetry chunk") {
+		t.Fatalf("ai retrieve E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "ai", "models", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "lot-genie") {
+		t.Fatalf("ai models E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	// 5. Remote MCP Inspection (#43)
+	stdout, stderr, err = runCLI(t, homeDir, "mcp", "status", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "lake-of-tears-mcp") {
+		t.Fatalf("mcp status E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = runCLI(t, homeDir, "mcp", "resources", "-o", "json",
+		"--endpoint", mockServer.URL,
+		"--token", "lot_pat_e2e_test",
+	)
+	if err != nil || !strings.Contains(stdout, "lot://catalogs/default/default_catalog") {
+		t.Fatalf("mcp resources E2E failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+	}
+}
+
 func readWithTimeout(r *bufio.Reader, timeout time.Duration) (string, error) {
 	type readResult struct {
 		line string

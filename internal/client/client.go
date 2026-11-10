@@ -17,6 +17,7 @@ type Client struct {
 	Token       string
 	Workspace   string
 	WorkspaceID string
+	OnBehalfOf  string
 	HTTPClient  *http.Client
 }
 
@@ -31,6 +32,7 @@ func NewClient(ctx config.Context) *Client {
 		Token:       ctx.Token,
 		Workspace:   ctx.Workspace,
 		WorkspaceID: ctx.WorkspaceID,
+		OnBehalfOf:  ctx.OnBehalfOf,
 		HTTPClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -91,6 +93,11 @@ func (c *Client) newRequest(method, path string, body interface{}) (*http.Reques
 
 	if c.Token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	}
+
+	if c.OnBehalfOf != "" {
+		req.Header.Set("X-On-Behalf-Of", c.OnBehalfOf)
+		req.Header.Set("X-Lot-User-Email", c.OnBehalfOf)
 	}
 
 	return req, nil
