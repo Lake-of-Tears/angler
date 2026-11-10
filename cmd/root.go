@@ -18,6 +18,7 @@ var (
 	token             string
 	workspaceFlag     string
 	workspaceIDFlag   string
+	onBehalfOfFlag    string
 	jsonOutput        bool
 	outputFlag        string
 	nonInteractive    bool
@@ -112,6 +113,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&token, "token", "t", "", "API authentication token")
 	rootCmd.PersistentFlags().StringVarP(&workspaceFlag, "workspace", "w", "", "Lake of Tears workspace slug or name")
 	rootCmd.PersistentFlags().StringVar(&workspaceIDFlag, "workspace-id", "", "explicit Lake of Tears workspace ID")
+	rootCmd.PersistentFlags().StringVar(&onBehalfOfFlag, "on-behalf-of", "", "impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)")
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "output results in JSON format")
 	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "", "output format: table, json, yaml, toon")
 	rootCmd.PersistentFlags().BoolVar(&nonInteractive, "non-interactive", false, "disable interactive prompts")
@@ -132,6 +134,9 @@ func getActiveContext() config.Context {
 	}
 	if workspaceIDFlag != "" {
 		active.WorkspaceID = workspaceIDFlag
+	}
+	if onBehalfOfFlag != "" {
+		active.OnBehalfOf = onBehalfOfFlag
 	}
 	return active
 }

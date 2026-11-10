@@ -13,11 +13,17 @@ import (
 )
 
 var (
-	aiStream   bool
-	aiNoStream bool
-	aiMode     string
-	aiModel    string
-	aiKey      string
+	aiStream         bool
+	aiNoStream       bool
+	aiMode           string
+	aiModel          string
+	aiKey            string
+	aiCatalogFilter  string
+	aiSchemaFilter   string
+	aiTableFilter    string
+	aiTopK           int
+	aiScoreThreshold float64
+	aiAssetType      string
 )
 
 var aiCmd = &cobra.Command{
@@ -327,6 +333,10 @@ var aiVectorIndexSearchCmd = &cobra.Command{
 		query := args[0]
 		c := getClient()
 
+		if cmd.Flags().Changed("catalog") || cmd.Flags().Changed("schema") || cmd.Flags().Changed("table") || cmd.Flags().Changed("top-k") || cmd.Flags().Changed("score-threshold") {
+			return runAIRetrieve(cmd, args)
+		}
+
 		req := client.GenieChatRequest{
 			Question: query,
 			Mode:     "rag",
@@ -396,26 +406,383 @@ var aiTestKeyCmd = &cobra.Command{
 	},
 }
 
+// ── Permission-Aware Vector Retrieval (`angler ai retrieve`) ────────────────
+
+var aiRetrieveCmd = &cobra.Command{
+	Use:   "retrieve <query>",
+	Short: "Execute RBAC-enforced vector similarity chunk retrieval without LLM synthesis",
+	Args:  cobra.MinimumNArgs(1),
+	RunE:  runAIRetrieve,
+}
+
+func runAIRetrieve(cmd *cobra.Command, args []string) error {
+	query := strings.TrimSpace(strings.Join(args, " "))
+	c := getClient()
+
+	req := client.VectorRetrieveRequest{
+		Query:         query,
+		TopK:          aiTopK,
+		WorkspaceSlug: c.Workspace,
+		Catalog:       aiCatalogFilter,
+		SchemaName:    aiSchemaFilter,
+		Table:         aiTableFilter,
+	}
+	if cmd.Flags().Changed("score-threshold") {
+		req.ScoreThreshold = &aiScoreThreshold
+	}
+
+	resp, err := c.RetrieveVectorChunks(req)
+	if err != nil {
+		return err
+	}
+
+	return ui.RenderOutput(resp, func() {
+		ui.PrintSuccess("Retrieved %d vector chunk(s) for query %q", resp.TotalResults, resp.Query)
+		if len(resp.Results) == 0 {
+			ui.PrintInfo("No matching vector chunks found.")
+			return
+		}
+
+		headers := []string{"CHUNK ID", "SCORE", "SOURCE", "CONTENT PREVIEW"}
+		rows := make([][]string, len(resp.Results))
+		for i, ch := range resp.Results {
+			preview := ch.Text
+			if preview == "" {
+				preview = ch.PageContent
+			}
+			if preview == "" {
+				preview = ch.Content
+			}
+			preview = strings.ReplaceAll(preview, "\n", " ")
+			if len(preview) > 64 {
+				preview = preview[:61] + "..."
+			}
+			source := ch.Source
+			if source == "" && ch.Metadata != nil {
+				if tbl, ok := ch.Metadata["table_slug"].(string); ok && tbl != "" {
+					source = tbl
+				}
+			}
+			rows[i] = []string{
+				ch.ChunkID,
+				fmt.Sprintf("%.4f", ch.Score),
+				source,
+				preview,
+			}
+		}
+		fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+	})
+}
+
+// ── OpenAI Vector Stores (`angler ai vector-stores`) ────────────────────────
+
+var aiVectorStoresCmd = &cobra.Command{
+	Use:     "vector-stores",
+	Aliases: []string{"vector-store"},
+	Short:   "List and search RBAC-scoped OpenAI-compatible vector stores",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runAIVectorStoresList(cmd, args)
+	},
+}
+
+var aiVectorStoresListCmd = &cobra.Command{
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "List caller-accessible workspaces and vector-indexed catalog tables as vector_store objects",
+	RunE:    runAIVectorStoresList,
+}
+
+func runAIVectorStoresList(cmd *cobra.Command, args []string) error {
+	c := getClient()
+	resp, err := c.ListVectorStores()
+	if err != nil {
+		return err
+	}
+
+	return ui.RenderOutput(resp, func() {
+		if len(resp.Data) == 0 {
+			ui.PrintInfo("No accessible vector stores found.")
+			return
+		}
+
+		headers := []string{"VECTOR STORE ID", "NAME", "STATUS"}
+		rows := make([][]string, len(resp.Data))
+		for i, vs := range resp.Data {
+			rows[i] = []string{vs.ID, vs.Name, vs.Status}
+		}
+		fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+		ui.PrintSuccess("Total vector stores: %d", len(resp.Data))
+	})
+}
+
+var aiVectorStoresSearchCmd = &cobra.Command{
+	Use:   "search <vector_store_id> <query>",
+	Short: "Search a specific OpenAI-compatible vector store ID (all, <workspace>, or <ws>:<cat>.<sch>.<tbl>)",
+	Args:  cobra.MinimumNArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		storeID := args[0]
+		query := strings.TrimSpace(strings.Join(args[1:], " "))
+
+		req := client.VectorStoreSearchRequest{
+			Query: query,
+			TopK:  aiTopK,
+		}
+		if cmd.Flags().Changed("score-threshold") {
+			req.ScoreThreshold = &aiScoreThreshold
+		}
+
+		c := getClient()
+		resp, err := c.SearchVectorStore(storeID, req)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(resp, func() {
+			ui.PrintSuccess("Vector Store Search (%s) — %d result(s)", storeID, len(resp.Data))
+			if len(resp.Data) == 0 {
+				ui.PrintInfo("No matching chunks found in vector store '%s'.", storeID)
+				return
+			}
+
+			headers := []string{"FILE / SOURCE", "SCORE", "TEXT PREVIEW"}
+			rows := make([][]string, len(resp.Data))
+			for i, item := range resp.Data {
+				preview := ""
+				if len(item.Content) > 0 {
+					if t, ok := item.Content[0]["text"].(string); ok {
+						preview = strings.ReplaceAll(t, "\n", " ")
+					}
+				}
+				if len(preview) > 64 {
+					preview = preview[:61] + "..."
+				}
+				rows[i] = []string{
+					item.Filename,
+					fmt.Sprintf("%.4f", item.Score),
+					preview,
+				}
+			}
+			fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+		})
+	},
+}
+
+// ── Virtual AI Models & Embeddings (`angler ai models`, `angler ai embeddings`) ──
+
+var aiModelsCmd = &cobra.Command{
+	Use:   "models",
+	Short: "List virtual OpenAI-compatible models tailored to caller RBAC permissions",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c := getClient()
+		resp, err := c.ListAIModels()
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(resp, func() {
+			if len(resp.Data) == 0 {
+				ui.PrintInfo("No virtual AI models available.")
+				return
+			}
+
+			headers := []string{"MODEL ID", "OWNED BY", "WORKSPACE", "DESCRIPTION"}
+			rows := make([][]string, len(resp.Data))
+			for i, m := range resp.Data {
+				ws := "All Authorized"
+				if m.WorkspaceSlug != nil && *m.WorkspaceSlug != "" {
+					ws = *m.WorkspaceSlug
+				}
+				desc := m.Description
+				if len(desc) > 58 {
+					desc = desc[:55] + "..."
+				}
+				rows[i] = []string{m.ID, m.OwnedBy, ws, desc}
+			}
+			fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+			ui.PrintSuccess("Total virtual models: %d", len(resp.Data))
+		})
+	},
+}
+
+var aiEmbeddingsCmd = &cobra.Command{
+	Use:   "embeddings <text...>",
+	Short: "Generate vector embeddings using the active Lake of Tears AI provider",
+	Args:  cobra.MinimumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		var input any
+		if len(args) == 1 {
+			input = args[0]
+		} else {
+			input = args
+		}
+
+		c := getClient()
+		resp, err := c.CreateEmbeddings(client.OpenAIEmbeddingRequest{
+			Input: input,
+			Model: aiModel,
+		})
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(resp, func() {
+			ui.PrintSuccess("Generated %d embedding vector(s) (Model: %s)", len(resp.Data), resp.Model)
+			for _, d := range resp.Data {
+				preview := "[]"
+				if len(d.Embedding) >= 4 {
+					preview = fmt.Sprintf("[%.5f, %.5f, %.5f, ... (%d dims)]", d.Embedding[0], d.Embedding[1], d.Embedding[2], len(d.Embedding))
+				} else if len(d.Embedding) > 0 {
+					preview = fmt.Sprintf("%v (%d dims)", d.Embedding, len(d.Embedding))
+				}
+				fmt.Fprintf(ui.OutWriter, "  [%d] %s\n", d.Index, preview)
+			}
+		})
+	},
+}
+
+// ── AI Prompt-to-Table & Semantic Table Enrichment (`table-from-prompt`, `enrich`) ──
+
+var aiTableFromPromptCmd = &cobra.Command{
+	Use:   "table-from-prompt <prompt>",
+	Short: "Generate a TOON table specification, column definitions, and DuckDB DDL from natural language",
+	Args:  cobra.MinimumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		prompt := strings.TrimSpace(strings.Join(args, " "))
+		c := getClient()
+		resp, err := c.GenerateTableFromPrompt(client.TableFromPromptRequest{
+			Prompt:     prompt,
+			Catalog:    aiCatalogFilter,
+			SchemaName: aiSchemaFilter,
+			Model:      aiModel,
+		})
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(resp, func() {
+			ui.PrintSuccess("Generated Table Specification: %s (%s)", resp.DisplayName, resp.TableName)
+			if resp.Description != nil && *resp.Description != "" {
+				fmt.Fprintf(ui.OutWriter, "  Description: %s\n", *resp.Description)
+			}
+			if resp.SQLDDL != "" {
+				fmt.Fprintf(ui.OutWriter, "\n%s\n%s\n", ui.StyleText(ui.TitleStyle, "DuckDB DDL:"), resp.SQLDDL)
+			}
+			if resp.Toon != "" {
+				fmt.Fprintf(ui.OutWriter, "\n%s\n%s\n", ui.StyleText(ui.TitleStyle, "TOON Specification:"), resp.Toon)
+			}
+		})
+	},
+}
+
+var aiEnrichCmd = &cobra.Command{
+	Use:   "enrich [name]",
+	Short: "Auto-generate semantic business descriptions and column comments for a catalog, schema, or table",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := ""
+		if len(args) > 0 {
+			name = args[0]
+		} else if aiTableFilter != "" {
+			name = aiTableFilter
+		} else if aiSchemaFilter != "" && aiAssetType == "schema" {
+			name = aiSchemaFilter
+		} else if aiCatalogFilter != "" && aiAssetType == "catalog" {
+			name = aiCatalogFilter
+		}
+		if name == "" {
+			return fmt.Errorf("asset name is required (pass as argument or via --table)")
+		}
+		c := getClient()
+		resp, err := c.EnrichCatalogAsset(client.GenerateDescriptionRequest{
+			AssetType:   aiAssetType,
+			Name:        name,
+			TableName:   name,
+			CatalogName: aiCatalogFilter,
+			SchemaName:  aiSchemaFilter,
+			Model:       aiModel,
+		})
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(resp, func() {
+			ui.PrintSuccess("AI Semantic Enrichment for %s '%s'", aiAssetType, name)
+			fmt.Fprintf(ui.OutWriter, "  Description: %s\n", resp.Description)
+			if len(resp.ColumnDescriptions) > 0 {
+				headers := []string{"COLUMN", "GENERATED DESCRIPTION"}
+				var rows [][]string
+				for col, desc := range resp.ColumnDescriptions {
+					rows = append(rows, []string{col, desc})
+				}
+				fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+			}
+		})
+	},
+}
+
 func init() {
 	// chat flags
 	aiChatCmd.Flags().BoolVar(&aiStream, "stream", false, "Stream response steps in real time")
 	aiChatCmd.Flags().BoolVar(&aiNoStream, "no-stream", false, "Disable streaming and return complete response")
 	aiChatCmd.Flags().StringVarP(&aiMode, "mode", "m", "auto", "Query mode: auto, sql, rag, clarify")
-	aiChatCmd.Flags().StringVar(&aiModel, "model", "", "LLM model override (e.g. gemini-2.0-flash)")
+	aiChatCmd.Flags().StringVar(&aiModel, "model", "", "LLM model override (e.g. gemini-2.5-flash)")
 
 	// test-key flags
 	aiTestKeyCmd.Flags().StringVar(&aiKey, "key", "", "Candidate API key to test (uses configured key if omitted)")
 	aiTestKeyCmd.Flags().StringVar(&aiModel, "model", "gemini-2.0-flash", "LLM model to verify")
+
+	// vector-index search granular flags
+	aiVectorIndexSearchCmd.Flags().StringVar(&aiCatalogFilter, "catalog", "", "Filter chunks to a specific catalog")
+	aiVectorIndexSearchCmd.Flags().StringVar(&aiSchemaFilter, "schema", "", "Filter chunks to a specific schema")
+	aiVectorIndexSearchCmd.Flags().StringVar(&aiTableFilter, "table", "", "Filter chunks to a specific table")
+	aiVectorIndexSearchCmd.Flags().IntVar(&aiTopK, "top-k", 5, "Maximum chunks to return (1..50)")
+	aiVectorIndexSearchCmd.Flags().Float64Var(&aiScoreThreshold, "score-threshold", 0.0, "Minimum cosine similarity score threshold (0.0..1.0)")
+
+	// retrieve flags
+	aiRetrieveCmd.Flags().StringVar(&aiCatalogFilter, "catalog", "", "Filter chunks to a specific catalog")
+	aiRetrieveCmd.Flags().StringVar(&aiSchemaFilter, "schema", "", "Filter chunks to a specific schema")
+	aiRetrieveCmd.Flags().StringVar(&aiTableFilter, "table", "", "Filter chunks to a specific table")
+	aiRetrieveCmd.Flags().IntVar(&aiTopK, "top-k", 5, "Maximum chunks to return (1..50)")
+	aiRetrieveCmd.Flags().Float64Var(&aiScoreThreshold, "score-threshold", 0.0, "Minimum cosine similarity score threshold (0.0..1.0)")
+
+	// vector-stores search flags
+	aiVectorStoresSearchCmd.Flags().IntVar(&aiTopK, "top-k", 5, "Maximum chunks to return (1..50)")
+	aiVectorStoresSearchCmd.Flags().Float64Var(&aiScoreThreshold, "score-threshold", 0.0, "Minimum cosine similarity score threshold (0.0..1.0)")
+
+	// embeddings flags
+	aiEmbeddingsCmd.Flags().StringVar(&aiModel, "model", "text-embedding-004", "Embedding model identifier")
+
+	// table-from-prompt flags
+	aiTableFromPromptCmd.Flags().StringVar(&aiCatalogFilter, "catalog", "", "Target catalog name")
+	aiTableFromPromptCmd.Flags().StringVar(&aiSchemaFilter, "schema", "", "Target schema name")
+	aiTableFromPromptCmd.Flags().StringVar(&aiModel, "model", "", "Optional LLM model override")
+
+	// enrich flags
+	aiEnrichCmd.Flags().StringVar(&aiAssetType, "type", "table", "Asset type: table, schema, or catalog")
+	aiEnrichCmd.Flags().StringVar(&aiCatalogFilter, "catalog", "", "Catalog name context")
+	aiEnrichCmd.Flags().StringVar(&aiSchemaFilter, "schema", "", "Schema name context")
+	aiEnrichCmd.Flags().StringVar(&aiTableFilter, "table", "", "Table name (optional if passed as positional argument)")
+	aiEnrichCmd.Flags().StringVar(&aiModel, "model", "", "Optional LLM model override")
 
 	// vector-index subcommands
 	aiVectorIndexCmd.AddCommand(aiVectorIndexListCmd)
 	aiVectorIndexCmd.AddCommand(aiVectorIndexSearchCmd)
 	aiVectorIndexCmd.AddCommand(aiVectorIndexSyncCmd)
 
+	// vector-stores subcommands
+	aiVectorStoresCmd.AddCommand(aiVectorStoresListCmd)
+	aiVectorStoresCmd.AddCommand(aiVectorStoresSearchCmd)
+
 	// ai subcommands
 	aiCmd.AddCommand(aiChatCmd)
 	aiCmd.AddCommand(aiContextCmd)
 	aiCmd.AddCommand(aiVectorIndexCmd)
+	aiCmd.AddCommand(aiVectorStoresCmd)
+	aiCmd.AddCommand(aiRetrieveCmd)
+	aiCmd.AddCommand(aiModelsCmd)
+	aiCmd.AddCommand(aiEmbeddingsCmd)
+	aiCmd.AddCommand(aiTableFromPromptCmd)
+	aiCmd.AddCommand(aiEnrichCmd)
 	aiCmd.AddCommand(aiTestKeyCmd)
 
 	rootCmd.AddCommand(aiCmd)

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -20,6 +21,9 @@ import (
 func resetMCPFlags() {
 	mcpClient = "claude"
 	mcpConfigPath = ""
+	mcpTransport = "stdio"
+	mcpRemote = false
+	mcpPrint = false
 	jsonOutput = false
 	outputFlag = ""
 }
@@ -30,7 +34,14 @@ func TestMCPCommandsRegistered(t *testing.T) {
 	for _, c := range commands {
 		if c.Name() == "mcp" {
 			foundMCP = true
-			subs := map[string]bool{"serve": false, "install": false}
+			subs := map[string]bool{
+				"serve":         false,
+				"status":        false,
+				"tools":         false,
+				"resources":     false,
+				"read-resource": false,
+				"install":       false,
+			}
 			for _, sub := range c.Commands() {
 				if _, ok := subs[sub.Name()]; ok {
 					subs[sub.Name()] = true
@@ -148,6 +159,97 @@ func setupMCPMockServer(t *testing.T) *httptest.Server {
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 
+	// Vector retrieve endpoint: /api/v1/retrieve
+	mux.HandleFunc("/api/v1/retrieve", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":    true,
+			"query": "revenue",
+			"total": 1,
+			"results": []map[string]any{
+				{"chunk_id": "chk-1", "content": "Q4 revenue summary", "score": 0.95},
+			},
+		})
+	})
+
+	// Remote /api/mcp endpoint
+	mux.HandleFunc("/api/mcp", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"name":             "lake-of-tears-mcp",
+				"version":          "1.0.0",
+				"protocolVersions": []string{"2025-03-26", "2024-11-05"},
+				"endpoints": map[string]string{
+					"streamable_http": "/api/mcp",
+					"sse":             "/api/mcp/sse",
+					"messages":        "/api/mcp/messages",
+				},
+				"tools": []string{
+					"list_workspaces_and_catalogs",
+					"describe_table",
+					"semantic_search_datalake",
+					"query_datalake_sql",
+					"ask_genie",
+				},
+			})
+			return
+		}
+
+		var rpcReq client.MCPJSONRPCRequest
+		_ = json.NewDecoder(r.Body).Decode(&rpcReq)
+		switch rpcReq.Method {
+		case "tools/list":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      rpcReq.ID,
+				"result": map[string]any{
+					"tools": []map[string]any{
+						{"name": "list_workspaces_and_catalogs", "description": "List authorized workspaces and catalogs"},
+						{"name": "describe_table", "description": "Describe a catalog table"},
+					},
+				},
+			})
+		case "resources/list":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      rpcReq.ID,
+				"result": map[string]any{
+					"resources": []map[string]any{
+						{
+							"uri":         "lot://catalogs/default/main",
+							"name":        "default/main",
+							"mimeType":    "application/json",
+							"description": "Catalog main in workspace default",
+						},
+					},
+				},
+			})
+		case "resources/read":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      rpcReq.ID,
+				"result": map[string]any{
+					"contents": []map[string]any{
+						{
+							"uri":      "lot://catalogs/default/main",
+							"mimeType": "application/json",
+							"text":     `{"name":"main","slug":"main","schemas":[]}`,
+						},
+					},
+				},
+			})
+		case "ping":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      rpcReq.ID,
+				"result":  map[string]any{},
+			})
+		default:
+			w.WriteHeader(http.StatusAccepted)
+		}
+	})
+
 	return httptest.NewServer(mux)
 }
 
@@ -164,7 +266,7 @@ func TestMCPServerToolsExecution(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Verify all 6 tools are registered
+	// Verify both legacy angler_* tools and canonical /api/mcp tools are registered
 	tools := s.ListTools()
 	expectedTools := []string{
 		"angler_sql_query",
@@ -173,6 +275,14 @@ func TestMCPServerToolsExecution(t *testing.T) {
 		"angler_workspace_read_notebook",
 		"angler_jobs_trigger",
 		"angler_ai_genie",
+		"list_workspaces_and_catalogs",
+		"describe_table",
+		"semantic_search_datalake",
+		"query_datalake_sql",
+		"ask_genie",
+		"angler_lakeset_datasets",
+		"angler_lakeset_explore",
+		"angler_secrets_list",
 	}
 	for _, expected := range expectedTools {
 		if _, ok := tools[expected]; !ok {
@@ -198,91 +308,98 @@ func TestMCPServerToolsExecution(t *testing.T) {
 		t.Errorf("expected 42 in SQL tool response: %s", textSQL)
 	}
 
-	// 2. Tool: angler_catalog_inspect
-	reqCat := mcp.CallToolRequest{
+	// 2. Canonical Tool: semantic_search_datalake
+	reqSem := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "angler_catalog_inspect",
-		},
-	}
-	resCat, err := s.GetTool("angler_catalog_inspect").Handler(ctx, reqCat)
-	if err != nil {
-		t.Fatalf("angler_catalog_inspect error: %v", err)
-	}
-	textCat := resCat.Content[0].(mcp.TextContent).Text
-	if !strings.Contains(textCat, "main") {
-		t.Errorf("expected main in catalog tool response: %s", textCat)
-	}
-
-	// 3. Tool: angler_fs_browse
-	reqFS := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "angler_fs_browse",
+			Name: "semantic_search_datalake",
 			Arguments: map[string]any{
-				"path": "gold/telemetry",
+				"query": "revenue",
+				"top_k": 3,
 			},
 		},
 	}
-	resFS, err := s.GetTool("angler_fs_browse").Handler(ctx, reqFS)
+	resSem, err := s.GetTool("semantic_search_datalake").Handler(ctx, reqSem)
 	if err != nil {
-		t.Fatalf("angler_fs_browse error: %v", err)
+		t.Fatalf("semantic_search_datalake error: %v", err)
 	}
-	textFS := resFS.Content[0].(mcp.TextContent).Text
-	if !strings.Contains(textFS, "data.parquet") {
-		t.Errorf("expected data.parquet in FS tool response: %s", textFS)
+	textSem := resSem.Content[0].(mcp.TextContent).Text
+	if !strings.Contains(textSem, "Q4 revenue summary") {
+		t.Errorf("expected Q4 revenue summary in semantic search response: %s", textSem)
 	}
 
-	// 4. Tool: angler_workspace_read_notebook
-	reqNB := mcp.CallToolRequest{
+	// 3. Canonical Tool: ask_genie
+	reqAsk := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "angler_workspace_read_notebook",
+			Name: "ask_genie",
 			Arguments: map[string]any{
-				"path": "analysis/report.ipynb",
+				"question": "How did revenue change?",
 			},
 		},
 	}
-	resNB, err := s.GetTool("angler_workspace_read_notebook").Handler(ctx, reqNB)
+	resAsk, err := s.GetTool("ask_genie").Handler(ctx, reqAsk)
 	if err != nil {
-		t.Fatalf("angler_workspace_read_notebook error: %v", err)
+		t.Fatalf("ask_genie error: %v", err)
 	}
-	textNB := resNB.Content[0].(mcp.TextContent).Text
-	if !strings.Contains(textNB, "Hello Lake") {
-		t.Errorf("expected notebook cell content: %s", textNB)
+	textAsk := resAsk.Content[0].(mcp.TextContent).Text
+	if !strings.Contains(textAsk, "14%") {
+		t.Errorf("expected 14%% in ask_genie response: %s", textAsk)
+	}
+}
+
+func TestMCPRemoteSubcommandsAndBridge(t *testing.T) {
+	ts := setupMCPMockServer(t)
+	defer ts.Close()
+
+	// 1. status
+	resetMCPFlags()
+	stdout, stderr, code := executeCLIForTest(t, true, "--endpoint", ts.URL, "mcp", "status")
+	if code != ui.ExitOK {
+		t.Fatalf("mcp status failed (%d): %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "lake-of-tears-mcp") {
+		t.Fatalf("expected lake-of-tears-mcp in status output: %s", stdout)
 	}
 
-	// 5. Tool: angler_jobs_trigger
-	reqJob := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "angler_jobs_trigger",
-			Arguments: map[string]any{
-				"job_id": "telemetry_etl",
-			},
-		},
+	// 2. tools
+	resetMCPFlags()
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", ts.URL, "mcp", "tools")
+	if code != ui.ExitOK {
+		t.Fatalf("mcp tools failed (%d): %s", code, stderr)
 	}
-	resJob, err := s.GetTool("angler_jobs_trigger").Handler(ctx, reqJob)
-	if err != nil {
-		t.Fatalf("angler_jobs_trigger error: %v", err)
-	}
-	textJob := resJob.Content[0].(mcp.TextContent).Text
-	if !strings.Contains(textJob, "manual__20261108T180000Z") {
-		t.Errorf("expected run ID in job trigger response: %s", textJob)
+	if !strings.Contains(stdout, "list_workspaces_and_catalogs") {
+		t.Fatalf("expected list_workspaces_and_catalogs in tools output: %s", stdout)
 	}
 
-	// 6. Tool: angler_ai_genie
-	reqGenie := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "angler_ai_genie",
-			Arguments: map[string]any{
-				"prompt": "How did revenue change?",
-			},
-		},
+	// 3. resources
+	resetMCPFlags()
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", ts.URL, "mcp", "resources")
+	if code != ui.ExitOK {
+		t.Fatalf("mcp resources failed (%d): %s", code, stderr)
 	}
-	resGenie, err := s.GetTool("angler_ai_genie").Handler(ctx, reqGenie)
-	if err != nil {
-		t.Fatalf("angler_ai_genie error: %v", err)
+	if !strings.Contains(stdout, "lot://catalogs/default/main") {
+		t.Fatalf("expected lot://catalogs/default/main in resources output: %s", stdout)
 	}
-	textGenie := resGenie.Content[0].(mcp.TextContent).Text
-	if !strings.Contains(textGenie, "14%") {
-		t.Errorf("expected 14%% in genie response: %s", textGenie)
+
+	// 4. read-resource
+	resetMCPFlags()
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", ts.URL, "mcp", "read-resource", "lot://catalogs/default/main")
+	if code != ui.ExitOK {
+		t.Fatalf("mcp read-resource failed (%d): %s", code, stderr)
+	}
+	if !strings.Contains(stdout, `"slug":"main"`) {
+		t.Fatalf("expected catalog JSON in read-resource output: %s", stdout)
+	}
+
+	// 5. Remote stdio-to-HTTP bridge
+	c := client.NewClient(config.Context{Endpoint: ts.URL, Token: "tok"})
+	in := bytes.NewBufferString(`{"jsonrpc":"2.0","id":99,"method":"ping"}` + "\n" + `{"jsonrpc":"2.0","method":"notifications/initialized"}` + "\n")
+	var out bytes.Buffer
+	if err := serveRemoteMCPBridge(c, in, &out); err != nil {
+		t.Fatalf("serveRemoteMCPBridge failed: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 1 || !strings.Contains(lines[0], `"id":99`) {
+		t.Fatalf("expected 1 response line for ping (notification ignored), got: %q", out.String())
 	}
 }
 
@@ -312,5 +429,15 @@ func TestMCPInstallCLI(t *testing.T) {
 	mcpServers, ok := parsed["mcpServers"].(map[string]any)
 	if !ok || mcpServers["angler"] == nil {
 		t.Fatalf("angler server not found in mcpServers: %+v", parsed)
+	}
+
+	// Test --transport http --print
+	resetMCPFlags()
+	stdout, stderr, code = executeCLIForTest(t, true, "--endpoint", "https://lake.example.com", "--token", "tok-abc", "mcp", "install", "--client", "antigravity", "--transport", "http", "--print")
+	if code != ui.ExitOK {
+		t.Fatalf("mcp install --transport http --print failed (%d): %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "https://lake.example.com/api/mcp") || !strings.Contains(stdout, "streamable-http") {
+		t.Fatalf("expected streamable-http config in --print output, got: %s", stdout)
 	}
 }

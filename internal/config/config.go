@@ -23,6 +23,7 @@ type Context struct {
 	Timeout     int    `yaml:"timeout" mapstructure:"timeout"`
 	Workspace   string `yaml:"workspace,omitempty" mapstructure:"workspace,omitempty"`
 	WorkspaceID string `yaml:"workspace_id,omitempty" mapstructure:"workspace_id,omitempty"`
+	OnBehalfOf  string `yaml:"on_behalf_of,omitempty" mapstructure:"on_behalf_of,omitempty"`
 }
 
 type Config struct {
@@ -142,6 +143,11 @@ func (c *Config) GetActiveContext(overrideContext string) Context {
 		ctx.WorkspaceID = envWorkspaceID
 	} else if envLotWorkspaceID := os.Getenv("LOT_WORKSPACE_ID"); envLotWorkspaceID != "" {
 		ctx.WorkspaceID = envLotWorkspaceID
+	}
+	if envOnBehalfOf := os.Getenv("ANGLER_ON_BEHALF_OF"); envOnBehalfOf != "" {
+		ctx.OnBehalfOf = envOnBehalfOf
+	} else if envLotOnBehalfOf := os.Getenv("LOT_ON_BEHALF_OF"); envLotOnBehalfOf != "" {
+		ctx.OnBehalfOf = envLotOnBehalfOf
 	}
 
 	return ctx

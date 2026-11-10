@@ -63,6 +63,32 @@ func NewMockBackend() *MockBackend {
 	// 6. Workspaces
 	mux.HandleFunc("/api/workspaces", mb.handleWorkspaces)
 
+	// 7. Lakeset BI Studio endpoints (#39)
+	mux.HandleFunc("/api/v1/lakeset/status", mb.handleLakesetStatus)
+	mux.HandleFunc("/api/v1/lakeset/datasets", mb.handleLakesetDatasets)
+	mux.HandleFunc("/api/v1/lakeset/sync", mb.handleLakesetSync)
+	mux.HandleFunc("/api/v1/lakeset/guest-token", mb.handleLakesetGuestToken)
+	mux.HandleFunc("/api/v1/lakeset/explore-data", mb.handleLakesetExploreData)
+
+	// 8. Secrets & Admin Vaults endpoints (#40)
+	mux.HandleFunc("/api/secrets/scopes", mb.handleSecretsScopes)
+	mux.HandleFunc("/api/secrets/scopes/", mb.handleSecretsScopes)
+	mux.HandleFunc("/api/admin/vaults", mb.handleAdminVaults)
+
+	// 9. Webhooks & Pipeline Webhooks (#41)
+	mux.HandleFunc("/api/v1/webhooks/", mb.handleWebhooks)
+	mux.HandleFunc("/api/v1/pipelines/", mb.handlePipelinesV1)
+
+	// 10. AI Gateway, Retrieval & Admin AI Providers (#42)
+	mux.HandleFunc("/api/v1/retrieve", mb.handleAIRetrieve)
+	mux.HandleFunc("/api/v1/vector_stores", mb.handleVectorStores)
+	mux.HandleFunc("/api/v1/models", mb.handleAIModels)
+	mux.HandleFunc("/api/v1/embeddings", mb.handleAIEmbeddings)
+	mux.HandleFunc("/api/admin/ai-provider", mb.handleAdminAIProvider)
+
+	// 11. Remote MCP Server (#43)
+	mux.HandleFunc("/api/mcp", mb.handleMCP)
+
 	mb.Server = httptest.NewServer(mux)
 	mb.URL = mb.Server.URL
 	return mb
@@ -432,4 +458,244 @@ func (mb *MockBackend) handleWorkspaces(w http.ResponseWriter, r *http.Request) 
 			Status: "active",
 		},
 	})
+}
+
+func (mb *MockBackend) handleLakesetStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":                    true,
+		"superset_online":       true,
+		"database_name":         "Lake of Tears (DuckDB Lakehouse)",
+		"engine":                "duckdb",
+		"workspace_slug":        "default",
+		"datasets_count":        2,
+		"synced_datasets_count": 2,
+		"dashboards_count":      1,
+	})
+}
+
+func (mb *MockBackend) handleLakesetDatasets(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":             true,
+		"workspace_slug": "default",
+		"total":          1,
+		"datasets": []map[string]any{
+			{
+				"id":           "ds-events",
+				"catalog_slug": "default_catalog",
+				"schema_slug":  "analytics",
+				"tier":         "gold",
+				"table_name":   "events",
+				"full_name":    "default_catalog.analytics.events",
+				"sql_view":     "analytics.events",
+				"column_count": 4,
+				"synced":       true,
+			},
+		},
+	})
+}
+
+func (mb *MockBackend) handleLakesetSync(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":                    true,
+		"workspace_slug":        "default",
+		"database_id":           1,
+		"database_name":         "Lake of Tears (DuckDB Lakehouse)",
+		"engine":                "duckdb",
+		"synced_datasets_count": 1,
+	})
+}
+
+func (mb *MockBackend) handleLakesetGuestToken(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":             true,
+		"token":          "lot_guest_jwt_e2e_123",
+		"expires_in":     3600,
+		"workspace_slug": "default",
+	})
+}
+
+func (mb *MockBackend) handleLakesetExploreData(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":         true,
+		"dataset":    "default_catalog.analytics.events",
+		"chart_type": "bar",
+		"sql":        "SELECT COUNT(*) FROM analytics.events",
+		"data": map[string]any{
+			"categories": []string{"all"},
+			"series":     []map[string]any{{"name": "COUNT(*)", "data": []float64{42}}},
+		},
+	})
+}
+
+func (mb *MockBackend) handleSecretsScopes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	path := strings.TrimPrefix(r.URL.Path, "/api/secrets/scopes")
+	if path == "" || path == "/" {
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"id":              "sc-e2e-1",
+				"workspace_id":    "ws-default",
+				"name":            "prod-secrets",
+				"backend_type":    "internal",
+				"user_permission": "MANAGE",
+				"key_count":       1,
+			},
+		})
+		return
+	}
+	if strings.HasSuffix(path, "/keys/db_password") {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"key":     "db_password",
+			"value":   "e2e-super-secret-value",
+			"version": 1,
+		})
+		return
+	}
+	_ = json.NewEncoder(w).Encode([]map[string]any{
+		{"key": "db_password", "version": 1},
+	})
+}
+
+func (mb *MockBackend) handleAdminVaults(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode([]map[string]any{
+		{"provider": "internal", "display_name": "PostgreSQL Encrypted Vault", "is_configured": true},
+		{"provider": "hashicorp_vault", "display_name": "HashiCorp Vault", "is_configured": true},
+	})
+}
+
+func (mb *MockBackend) handleWebhooks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if strings.HasSuffix(r.URL.Path, "/secret") {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"workspace_id":   "ws-default",
+			"workspace_slug": "default",
+			"webhook_secret": "whsec_e2e_secret",
+			"webhook_url":    "/api/v1/ingest/webhooks/default",
+		})
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":             "accepted",
+		"event_id":           "evt-e2e-1",
+		"workspace_slug":     "default",
+		"triggered_pipeline": r.URL.Query().Get("trigger_pipeline"),
+		"dag_run_id":         "webhook__e2e_run",
+	})
+}
+
+func (mb *MockBackend) handlePipelinesV1(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if strings.HasSuffix(r.URL.Path, "/webhook") {
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":     "queued",
+			"dag_id":     "telemetry_etl",
+			"dag_run_id": "webhook__e2e_pipeline_run",
+			"state":      "queued",
+		})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"dag_id":          "telemetry_etl",
+		"webhook_enabled": true,
+		"webhook_url":     "/api/v1/pipelines/default/telemetry_etl/webhook",
+	})
+}
+
+func (mb *MockBackend) handleAIRetrieve(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":    true,
+		"query": "telemetry",
+		"total": 1,
+		"results": []map[string]any{
+			{"chunk_id": "chk-e2e-1", "content": "E2E telemetry chunk", "score": 0.96},
+		},
+	})
+}
+
+func (mb *MockBackend) handleVectorStores(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"object": "list",
+		"data": []map[string]any{
+			{"id": "vs_default_catalog", "object": "vector_store", "name": "default/default_catalog", "status": "completed"},
+		},
+	})
+}
+
+func (mb *MockBackend) handleAIModels(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"object": "list",
+		"data": []map[string]any{
+			{"id": "lot-genie", "object": "model", "owned_by": "lake-of-tears"},
+			{"id": "lot-rag", "object": "model", "owned_by": "lake-of-tears"},
+		},
+	})
+}
+
+func (mb *MockBackend) handleAIEmbeddings(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"object": "list",
+		"model":  "text-embedding-004",
+		"data": []map[string]any{
+			{"object": "embedding", "index": 0, "embedding": []float64{0.11, 0.22, 0.33}},
+		},
+	})
+}
+
+func (mb *MockBackend) handleAdminAIProvider(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"active_provider": "vertex",
+		"providers": []map[string]any{
+			{"id": "vertex", "label": "Google Cloud Vertex AI", "chat_model": "gemini-2.5-flash", "embed_model": "text-embedding-005"},
+		},
+	})
+}
+
+func (mb *MockBackend) handleMCP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method == http.MethodGet {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"name":             "lake-of-tears-mcp",
+			"version":          "1.0.0",
+			"protocolVersions": []string{"2025-03-26", "2024-11-05"},
+			"endpoints": map[string]string{
+				"streamable_http": "/api/mcp",
+				"sse":             "/api/mcp/sse",
+			},
+			"tools": []string{"list_workspaces_and_catalogs", "describe_table", "semantic_search_datalake", "query_datalake_sql", "ask_genie"},
+		})
+		return
+	}
+	var rpcReq client.MCPJSONRPCRequest
+	_ = json.NewDecoder(r.Body).Decode(&rpcReq)
+	switch rpcReq.Method {
+	case "resources/list":
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      rpcReq.ID,
+			"result": map[string]any{
+				"resources": []map[string]any{
+					{"uri": "lot://catalogs/default/default_catalog", "name": "default/default_catalog", "mimeType": "application/json"},
+				},
+			},
+		})
+	default:
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      rpcReq.ID,
+			"result":  map[string]any{},
+		})
+	}
 }

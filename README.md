@@ -252,11 +252,25 @@ angler jobs cancel telemetry_etl manual__20261108T160000Z__user --force
 # Pause or unpause scheduled execution
 angler jobs pause telemetry_etl
 angler jobs unpause telemetry_etl
+
+# Configure and trigger native pipeline inbound webhooks
+angler jobs webhook enable telemetry_etl
+angler jobs webhook url telemetry_etl
+angler jobs webhook trigger telemetry_etl --payload '{"source":"s3","batch":42}'
+
+# Update pipeline cron schedule, schedule a notebook, or view execution timeline
+angler jobs schedule telemetry_etl --cron "0 * * * *"
+angler jobs schedule-notebook --path analysis/etl.ipynb --cron "@daily" --name daily_etl
+angler jobs timeline --date 2026-11-10
+
+# Send HMAC-signed raw webhook events with downstream pipeline triggering
+angler webhooks secret get
+angler webhooks send --payload '{"event":"order_created"}' --trigger-pipeline telemetry_etl --hmac
 ```
 
-### 9. Genie AI & Semantic Gateway (`angler ai`)
+### 9. Genie AI, Vector Retrieval & Semantic Gateway (`angler ai`)
 
-Converse with Lake of Tears Genie AI grounded in catalog tables and schemas, stream execution steps, inspect active semantic grounding contexts, and manage table vector indexes:
+Converse with Lake of Tears Genie AI grounded in catalog tables and schemas, execute permission-aware vector retrieval, query OpenAI-compatible virtual models and vector stores, and enrich catalog metadata:
 
 ```bash
 # Natural language data queries and semantic reasoning (alias: angler genie)
@@ -266,21 +280,85 @@ angler ai chat "Count total orders in 2026" --no-stream
 # Stream reasoning steps and SQL generation in real-time
 angler ai chat --stream "Analyze revenue variance between Q2 and Q3"
 
+# Permission-aware vector chunk retrieval with granular catalog/schema/table filters
+angler ai retrieve "enterprise churn risk factors" --catalog main --schema gold --top-k 5
+
+# List and search OpenAI-compatible RBAC vector stores
+angler ai vector-stores list
+angler ai vector-stores search vs_default_main "quarterly revenue"
+
+# List virtual AI models (lot-genie, lot-rag, lot-hybrid) and generate vector embeddings
+angler ai models
+angler ai embeddings "Lakehouse semantic architecture" --model text-embedding-004
+
+# Generate a catalog table specification from a natural language prompt or enrich table descriptions
+angler ai table-from-prompt "Track daily customer churn scores by cohort" --schema gold
+angler ai enrich churn_predictions --catalog main --schema gold
+
 # Inspect active workspace grounding context, schemas, and registered SQL AI functions
 angler ai context
 
 # List active table vector embeddings and indexes across workspace catalogs
 angler ai vector-index list
-angler ai vector-index search "high value customers"
+angler ai vector-index search "high value customers" --catalog main --top-k 5
 
 # Trigger vector index synchronization for a table
 angler ai vector-index sync main retail orders
 
-# Verify configured LLM credentials against the backend gateway
-angler ai test-key --model gemini-2.0-flash
+# Trusted proxy user impersonation (superadmin service tokens)
+angler ai retrieve "confidential notes" --on-behalf-of analyst@lake.io
 ```
 
-### 10. BI Dashboards & Visualizations (`angler dashboards`)
+### 10. Lakeset BI Studio & Embedded Analytics (`angler lakeset`)
+
+Manage the native zero-login Lakeset BI Studio (`/lakeset`), synchronize catalog tables and semantic descriptions to DuckDB + Superset, mint RLS-scoped guest tokens, and run interactive Chart Builder queries:
+
+```bash
+# Inspect Lakeset BI Studio status and DuckDB Lakehouse engine health (alias: angler bi)
+angler lakeset status
+
+# List RBAC-authorized Lakeset datasets across Medallion tiers
+angler lakeset datasets --tier gold --search revenue
+
+# Synchronize workspace catalog tables and semantic column descriptions to Lakeset
+angler lakeset sync --catalog main --force
+
+# Mint an RLS-scoped JWT Guest Token for embedded Superset dashboards/charts
+angler lakeset guest-token --dataset main.gold.revenue_summary --raw
+
+# Run a live DuckDB S3 Chart Builder aggregation query from the terminal
+angler lakeset explore --dataset main.gold.revenue_summary --dimension region --metric amount --agg SUM
+
+# Open or print a zero-login deep-link into Lakeset BI Studio
+angler lakeset open --dataset main.gold.revenue_summary --tab explore
+```
+
+### 11. Secret Scopes & Enterprise Vault Providers (`angler secrets`, `angler admin vaults`)
+
+Manage workspace secret scopes, encrypted secret keys, role-based ACLs, and external vault backends (PostgreSQL Encrypted Vault, HashiCorp Vault, Google Cloud Secret Manager):
+
+```bash
+# List and create workspace secret scopes (alias: angler secret)
+angler secrets scopes list
+angler secrets scopes create prod-vault --backend hashicorp_vault
+
+# Store, list, and retrieve secrets (masked by default in table output; --raw for shell piping)
+angler secrets put prod-vault api_key --string-value "sk-live-..."
+angler secrets list prod-vault
+angler secrets get prod-vault api_key
+export API_KEY=$(angler secrets get prod-vault api_key --raw)
+
+# Manage fine-grained Secret Scope ACLs (READ, WRITE, MANAGE)
+angler secrets acls list prod-vault
+angler secrets acls set prod-vault --principal write --principal-type role --permission WRITE
+
+# Configure and test cluster-wide vault providers (superadmin)
+angler admin vaults list
+angler admin vaults test hashicorp_vault
+angler admin vaults scopes
+```
+
+### 12. BI Dashboards & Visualizations (`angler dashboards`)
 
 Inspect dashboard layouts, deploy new canvas specifications, and extract live aggregated chart data:
 
@@ -308,9 +386,9 @@ angler dashboards widgets get-data dash-123 w_kpi_1 --time-range last_30_days
 angler dashboards delete dash-123 --force
 ```
 
-### 11. IAM, Workspaces & Administration (`angler users`, `angler workspaces`, `angler admin`)
+### 13. IAM, Workspaces & Administration (`angler users`, `angler workspaces`, `angler admin`)
 
-Manage user accounts, multi-tenant workspace environments, access memberships, and cluster-wide runtime settings:
+Manage user accounts, multi-tenant workspace environments, access memberships, enterprise AI providers, and cluster-wide runtime settings:
 
 ```bash
 # User Management (superadmin)
@@ -326,6 +404,11 @@ angler workspaces members list ws-prod
 angler workspaces members add ws-prod --email analyst@lot.io --role editor
 angler workspaces members remove ws-prod u-123 --force
 
+# Multi-Provider AI Administration (Gemini, Vertex AI, OpenAI, Anthropic, Ollama, OpenAI-Compat)
+angler admin ai-providers list
+angler admin ai-providers test --provider vertex
+angler admin ai-providers discover-models --provider vertex
+
 # System Administration & Session Auditing
 angler admin settings get
 angler admin settings update --session-timeout 120 --gemini-model gemini-2.0-flash
@@ -333,29 +416,31 @@ angler admin sessions list
 angler admin sessions revoke sess-123 --force
 ```
 
-### 12. Model Context Protocol (MCP) Server Mode (`angler mcp`)
+### 14. Model Context Protocol (MCP) Server & Remote Bridge (`angler mcp`)
 
-Run Lake of Tears as a native stdio MCP server for Claude Desktop, Google Antigravity, Cursor, and Continue:
+Run Lake of Tears as a local stdio MCP server, bridge stdio directly to the remote `/api/mcp` HTTP endpoint, inspect RBAC-scoped catalog resources, or configure MCP clients (Claude Desktop, Google Antigravity, Cursor):
 
 ```bash
-# Start MCP server over standard I/O (stdio)
+# Inspect remote /api/mcp server status, tools, and RBAC catalog resources
+angler mcp status
+angler mcp tools
+angler mcp resources
+angler mcp read-resource lot://catalogs/default/main
+
+# Start local MCP server over standard I/O (stdio) or bridge to remote /api/mcp
 angler mcp serve
+angler mcp serve --remote
 
-# Auto-configure Claude Desktop
+# Auto-configure Claude Desktop, Google Antigravity, or Cursor (stdio, sse, or http)
 angler mcp install --client claude
-
-# Auto-configure Google Antigravity or Cursor
-angler mcp install --client antigravity
-angler mcp install --client cursor
+angler mcp install --client antigravity --transport http
+angler mcp install --client cursor --transport sse --print
 ```
 
-**Exposed MCP Tools:**
-- `angler_sql_query`: Execute DuckDB queries over lakehouse tables and views.
-- `angler_catalog_inspect`: Browse Unity-style catalogs, schemas, tables, and column metadata.
-- `angler_fs_browse`: Browse files and object store paths in Lake of Tears volumes.
-- `angler_workspace_read_notebook`: Fetch notebook cells, scripts, and workspace files.
-- `angler_jobs_trigger`: Run scheduled pipelines and DAG tasks.
-- `angler_ai_genie`: Query Lake of Tears' internal Genie conversational AI and vector embeddings.
+**Exposed MCP Tools & Resources:**
+- **Canonical Lake of Tears Tools:** `list_workspaces_and_catalogs`, `describe_table`, `semantic_search_datalake`, `query_datalake_sql`, `ask_genie`
+- **Angler Extended Tools:** `angler_sql_query`, `angler_catalog_inspect`, `angler_fs_browse`, `angler_workspace_read_notebook`, `angler_jobs_trigger`, `angler_ai_genie`, `angler_lakeset_datasets`, `angler_lakeset_explore`, `angler_secrets_list`
+- **Catalog Resources:** `lot://catalogs/{workspace_slug}/{catalog_slug}`
 
 ---
 
@@ -364,24 +449,27 @@ angler mcp install --client cursor
 | Command | Lake Alias | Description |
 | :--- | :--- | :--- |
 | `angler bundle` | `angler lab` | Develop, validate, deploy, and manage Lake Asset Bundles (LABs) |
+| `angler lakeset` | `angler bi` | Zero-login Lakeset BI Studio, DuckDB semantic sync, guest tokens, and Chart Builder |
+| `angler secrets` | `angler secret` | Workspace secret scopes, encrypted key CRUD, and fine-grained ACLs |
+| `angler webhooks` | `angler webhook` | Workspace webhook secrets and HMAC-signed event ingestion with pipeline triggers |
 | `angler status` | `angler ping` | Check cluster connectivity and service health |
 | `angler sql` | `angler query`, `angler cast` | Unified SQL execution, query plans, history, and AI assistance |
 | `angler fs` | `angler storage` | Filesystem & storage management modeled after Databricks FS / Volumes |
 | `angler workspace` | `angler ws` | Manage notebooks, scripts, directories, and headless execution |
-| `angler jobs` | `angler pipelines` | Manage data pipelines, scheduled jobs, DAG runs, and task logs |
+| `angler jobs` | `angler pipelines` | Manage data pipelines, webhooks, schedules, timeline, DAG runs, and task logs |
 | `angler dashboards` | `angler dash`, `angler dashboard` | Native BI dashboards, canvas widget configurations, and aggregated metrics |
-| `angler ai` | `angler genie` | Genie conversational AI, semantic gateway, vector indexes, and LLM verification |
+| `angler ai` | `angler genie` | Genie conversational AI, vector retrieval, virtual models, embeddings, and enrichment |
 | `angler ask` | `angler sonar` | Natural language question answering via AI RAG |
 | `angler catalog` | `angler net` | Browse Parquet tables, schemas, and partition info |
 | `angler tool-defs` | `angler schema` | Export LLM tool/function schemas (Gemini, OpenAI, OpenAPI 3.1) |
-| `angler mcp` | — | Model Context Protocol (MCP) stdio server and AI IDE auto-configuration |
+| `angler mcp` | — | Model Context Protocol (MCP) stdio server, remote `/api/mcp` bridge, and client installer |
 | `angler up` | `angler launch` | Spin up local Lake of Tears Docker stack |
 | `angler down` | `angler dock` | Stop and safely dock running containers |
 | `angler auth` | — | Log in, log out, and check authentication status |
 | `angler tokens` | `angler pat` | Provision, inspect, list, and revoke Personal Access Tokens |
 | `angler users` | `angler user` | User accounts, global roles, active status, and credentials |
 | `angler workspaces` | `angler ws-admin` | Multi-tenant workspace provisioning and IAM memberships |
-| `angler admin` | — | System-wide settings, session auditing, and security controls |
+| `angler admin` | — | System settings, multi-provider AI config, external vaults, and session auditing |
 | `angler context` | — | Manage multiple environment profiles (`~/.angler/config.yaml`) |
 | `angler version` | — | Display build version, commit, and date |
 | `angler completion` | — | Generate shell autocompletions (bash, zsh, fish, powershell) |
@@ -546,6 +634,7 @@ For headless CI/CD environments, `angler` respects environment variables:
 | `ANGLER_TOKEN` | API bearer token or service account key |
 | `ANGLER_WORKSPACE` / `LOT_WORKSPACE` | Target workspace slug, name, or UUID |
 | `ANGLER_WORKSPACE_ID` / `LOT_WORKSPACE_ID` | Explicit target workspace ID |
+| `ANGLER_ON_BEHALF_OF` / `LOT_ON_BEHALF_OF` | Trusted proxy user email for superadmin impersonation |
 | `ANGLER_CONTEXT` | Select active profile context name |
 | `ANGLER_EMAIL` | Account email for non-interactive `angler auth login` |
 | `ANGLER_PASSWORD` | Account password for non-interactive `angler auth login` |
