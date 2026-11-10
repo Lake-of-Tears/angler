@@ -331,3 +331,158 @@ func (c *Client) DismissAIDeprecationWarning() (map[string]any, error) {
 	}
 	return res, nil
 }
+
+// ── Kubernetes Platform Service Lifecycle Controls (`/api/admin/services`) ──
+
+// PlatformServiceInfo represents a Kubernetes platform deployment managed by Lake of Tears.
+type PlatformServiceInfo struct {
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	DisplayName       string         `json:"display_name"`
+	Description       string         `json:"description,omitempty"`
+	Category          string         `json:"category,omitempty"`
+	Status            string         `json:"status"`
+	DesiredReplicas   int            `json:"desired_replicas"`
+	ReadyReplicas     int            `json:"ready_replicas"`
+	IsCore            bool           `json:"is_core"`
+	Restarts          int            `json:"restarts"`
+	Uptime            *string        `json:"uptime,omitempty"`
+	CreatedAt         *string        `json:"created_at,omitempty"`
+	PodName           *string        `json:"pod_name,omitempty"`
+	NodeName          *string        `json:"node_name,omitempty"`
+	CPUUsage          *string        `json:"cpu_usage,omitempty"`
+	MemoryUsage       *string        `json:"memory_usage,omitempty"`
+	CPULimit          *string        `json:"cpu_limit,omitempty"`
+	MemoryLimit       *string        `json:"memory_limit,omitempty"`
+	LastRestart       *string        `json:"last_restart,omitempty"`
+	Image             *string        `json:"image,omitempty"`
+	Port              *int           `json:"port,omitempty"`
+	ActiveConnections *int           `json:"active_connections,omitempty"`
+	LatencyMs         *float64       `json:"latency_ms,omitempty"`
+	Error             *string        `json:"error,omitempty"`
+	ExtraDetails      map[string]any `json:"extra_details,omitempty"`
+}
+
+// PlatformServicesListResponse represents the response from GET /api/admin/services.
+type PlatformServicesListResponse struct {
+	ClusterConnected bool                  `json:"cluster_connected"`
+	Mode             string                `json:"mode"`
+	Namespace        string                `json:"namespace"`
+	TotalServices    int                   `json:"total_services"`
+	HealthyCount     int                   `json:"healthy_count"`
+	Services         []PlatformServiceInfo `json:"services"`
+}
+
+// PlatformServiceActionResponse represents the response from restart, stop, or start lifecycle actions.
+type PlatformServiceActionResponse struct {
+	Success     bool   `json:"success"`
+	Service     string `json:"service"`
+	Deployment  string `json:"deployment,omitempty"`
+	Action      string `json:"action"`
+	Message     string `json:"message"`
+	RestartedAt string `json:"restarted_at,omitempty"`
+}
+
+// ListPlatformServices fetches all Kubernetes platform deployments and their states.
+func (c *Client) ListPlatformServices() (*PlatformServicesListResponse, error) {
+	req, err := c.newRequest(http.MethodGet, "/api/admin/services", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list platform services: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("list platform services failed (HTTP %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res PlatformServicesListResponse
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("failed to decode platform services response: %w", err)
+	}
+	return &res, nil
+}
+
+// RestartPlatformService triggers a rolling restart of a platform deployment.
+func (c *Client) RestartPlatformService(serviceName string) (*PlatformServiceActionResponse, error) {
+	path := fmt.Sprintf("/api/admin/services/%s/restart", url.PathEscape(serviceName))
+	req, err := c.newRequest(http.MethodPost, path, map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to restart platform service %q: %w", serviceName, err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("restart platform service failed (HTTP %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res PlatformServiceActionResponse
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("failed to decode restart service response: %w", err)
+	}
+	return &res, nil
+}
+
+// StopPlatformService scales a non-core platform service deployment to 0 replicas.
+func (c *Client) StopPlatformService(serviceName string) (*PlatformServiceActionResponse, error) {
+	path := fmt.Sprintf("/api/admin/services/%s/stop", url.PathEscape(serviceName))
+	req, err := c.newRequest(http.MethodPost, path, map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stop platform service %q: %w", serviceName, err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("stop platform service failed (HTTP %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res PlatformServiceActionResponse
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("failed to decode stop service response: %w", err)
+	}
+	return &res, nil
+}
+
+// StartPlatformService scales a stopped platform service back to active replicas.
+func (c *Client) StartPlatformService(serviceName string) (*PlatformServiceActionResponse, error) {
+	path := fmt.Sprintf("/api/admin/services/%s/start", url.PathEscape(serviceName))
+	req, err := c.newRequest(http.MethodPost, path, map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start platform service %q: %w", serviceName, err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("start platform service failed (HTTP %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res PlatformServiceActionResponse
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("failed to decode start service response: %w", err)
+	}
+	return &res, nil
+}
+

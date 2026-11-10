@@ -16,6 +16,8 @@ import (
 
 func resetCatalogTestFlags() {
 	catDescription = ""
+	catName = ""
+	catS3Path = ""
 	catWorkspace = ""
 	catPurge = false
 	catForce = false
@@ -23,6 +25,11 @@ func resetCatalogTestFlags() {
 	catAnomalySource = ""
 	catAnomalyTable = ""
 	catAnomalyContam = 0.05
+	catRestoreStrat = ""
+	catRestoreNewName = ""
+	catAccessMode = "read"
+	catAccessMessage = "Requested via Angler CLI"
+	catToonRaw = false
 	jsonOutput = false
 	outputFlag = ""
 }
@@ -68,21 +75,25 @@ func TestCatalogCommandsRegistered(t *testing.T) {
 				subMap[sub.Name()] = true
 			}
 
-			expected := []string{"ls", "get", "create", "delete", "schemas", "tables", "manifest", "anomalies"}
+			expected := []string{
+				"ls", "get", "create", "update", "delete",
+				"schemas", "tables", "toon", "trash", "undrop",
+				"directory", "access", "manifest", "anomalies",
+			}
 			for _, exp := range expected {
 				if !subMap[exp] {
 					t.Errorf("expected subcommand %q under catalogCmd", exp)
 				}
 			}
 
-			// Verify schemas subcommands
+			// Verify schemas, tables, trash, and access subcommands
 			for _, sub := range subCmds {
 				if sub.Name() == "schemas" {
 					schMap := make(map[string]bool)
 					for _, sc := range sub.Commands() {
 						schMap[sc.Name()] = true
 					}
-					for _, exp := range []string{"list", "get", "create", "delete"} {
+					for _, exp := range []string{"list", "get", "create", "update", "delete"} {
 						if !schMap[exp] {
 							t.Errorf("expected schema subcommand %q", exp)
 						}
@@ -93,9 +104,31 @@ func TestCatalogCommandsRegistered(t *testing.T) {
 					for _, tc := range sub.Commands() {
 						tblMap[tc.Name()] = true
 					}
-					for _, exp := range []string{"list", "get", "delete"} {
+					for _, exp := range []string{"list", "get", "update", "delete"} {
 						if !tblMap[exp] {
 							t.Errorf("expected table subcommand %q", exp)
+						}
+					}
+				}
+				if sub.Name() == "trash" {
+					trashMap := make(map[string]bool)
+					for _, tc := range sub.Commands() {
+						trashMap[tc.Name()] = true
+					}
+					for _, exp := range []string{"list", "restore", "purge", "purge-expired"} {
+						if !trashMap[exp] {
+							t.Errorf("expected trash subcommand %q", exp)
+						}
+					}
+				}
+				if sub.Name() == "access" {
+					accMap := make(map[string]bool)
+					for _, ac := range sub.Commands() {
+						accMap[ac.Name()] = true
+					}
+					for _, exp := range []string{"list", "request", "approve", "reject", "revoke"} {
+						if !accMap[exp] {
+							t.Errorf("expected access subcommand %q", exp)
 						}
 					}
 				}
@@ -400,3 +433,302 @@ func TestCatalogManifestAndAnomalies(t *testing.T) {
 		t.Errorf("expected healthy status in anomalies output, got:\n%s", stdout)
 	}
 }
+
+func TestCatalogTrashAndUndrop(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/catalogs/trash" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]client.DeletedCatalogAsset{
+				{
+					ID:            "trash-001",
+					CatalogName:   "main",
+					SchemaName:    "gold",
+					AssetType:     "table",
+					Name:          "dropped_orders",
+					Slug:          "dropped_orders",
+					DroppedAt:     time.Now(),
+					DaysRemaining: 6.8,
+				},
+			})
+		case r.URL.Path == "/api/catalogs/trash/trash-001/restore" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ok":          true,
+				"restored_id": "trash-001",
+			})
+		case r.URL.Path == "/api/catalogs/trash/trash-001/purge" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ok":        true,
+				"purged_id": "trash-001",
+			})
+		case r.URL.Path == "/api/catalogs/trash/purge-expired" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ok":           true,
+				"purged_count": 2,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+
+	cfg = &config.Config{
+		CurrentContext: "test",
+		Contexts: map[string]config.Context{
+			"test": {Endpoint: ts.URL, Token: "test-token", Workspace: "default"},
+		},
+	}
+
+	// 1. Trash list
+	stdout, stderr, code := executeCatalogCommand(t, ts.URL, "catalog", "trash", "list")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog trash list failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "dropped_orders") || !strings.Contains(stdout, "trash-001") {
+		t.Errorf("expected dropped_orders in trash list, got:\n%s", stdout)
+	}
+
+	// 2. Trash restore
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "trash", "restore", "trash-001")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog trash restore failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "restored") {
+		t.Errorf("expected restored confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 3. Top-level undrop alias
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "undrop", "trash-001", "--strategy", "rename", "--new-name", "orders_restored")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog undrop failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "restored") {
+		t.Errorf("expected restored confirmation from undrop, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 4. Trash purge
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "trash", "purge", "trash-001", "--force")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog trash purge failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "purged") {
+		t.Errorf("expected purged confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 5. Trash purge-expired
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "trash", "purge-expired", "--force")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog trash purge-expired failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "purged") {
+		t.Errorf("expected purged confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+}
+
+func TestCatalogUpdateAndTOON(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/catalogs/cat-main" && r.Method == http.MethodPatch:
+			json.NewEncoder(w).Encode(client.Catalog{
+				ID:          "cat-main",
+				Name:        "main",
+				Slug:        "main",
+				Description: "Updated catalog desc",
+			})
+		case r.URL.Path == "/api/catalogs/cat-main/schemas/sch-gold" && r.Method == http.MethodPatch:
+			json.NewEncoder(w).Encode(client.CatalogSchema{
+				ID:          "sch-gold",
+				CatalogID:   "cat-main",
+				Name:        "gold",
+				Description: "Updated schema desc",
+			})
+		case r.URL.Path == "/api/catalogs/cat-main/schemas/sch-gold/tables/tbl-users" && r.Method == http.MethodPatch:
+			json.NewEncoder(w).Encode(client.CatalogTable{
+				ID:          "tbl-users",
+				SchemaID:    "sch-gold",
+				Name:        "users",
+				Description: "Updated table desc",
+			})
+		case r.URL.Path == "/api/catalogs/cat-main/schemas/sch-gold/toon" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(client.TOONExportResponse{
+				OK:      true,
+				TOON:    "schema: gold\ncatalog: main\ntables[1]{name}:\n  users",
+				Catalog: "main",
+				Schema:  "gold",
+			})
+		case r.URL.Path == "/api/catalogs/cat-main/schemas/sch-gold/tables/tbl-users/toon" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(client.TOONExportResponse{
+				OK:      true,
+				TOON:    "table: users\nschema: gold\ncolumns[2]{name,type}:\n  id,UUID\n  email,VARCHAR",
+				Catalog: "main",
+				Schema:  "gold",
+				Table:   "users",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+
+	cfg = &config.Config{
+		CurrentContext: "test",
+		Contexts: map[string]config.Context{
+			"test": {Endpoint: ts.URL, Token: "test-token", Workspace: "default"},
+		},
+	}
+
+	// 1. Update catalog
+	stdout, stderr, code := executeCatalogCommand(t, ts.URL, "catalog", "update", "cat-main", "--description", "Updated catalog desc")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog update failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "Updated catalog desc") {
+		t.Errorf("expected updated catalog description, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 2. Update schema
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "schemas", "update", "cat-main", "sch-gold", "--description", "Updated schema desc")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog schemas update failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "Updated schema desc") {
+		t.Errorf("expected updated schema description, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 3. Update table
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "tables", "update", "cat-main", "sch-gold", "tbl-users", "--description", "Updated table desc")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog tables update failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "Updated table desc") {
+		t.Errorf("expected updated table description, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 4. Schema TOON export
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "toon", "cat-main", "sch-gold")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog toon schema failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "schema: gold") {
+		t.Errorf("expected TOON schema output, got:\n%s", stdout)
+	}
+
+	// 5. Table TOON export (--raw)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "toon", "cat-main", "sch-gold", "tbl-users", "--raw")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog toon table failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "table: users") || !strings.Contains(stdout, "email,VARCHAR") {
+		t.Errorf("expected TOON table output, got:\n%s", stdout)
+	}
+}
+
+func TestCatalogDirectoryAndAccess(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/workspaces" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]client.Workspace{
+				{ID: "ws-default", Name: "default", Slug: "default"},
+			})
+		case r.URL.Path == "/api/catalogs/directory" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]client.CatalogDirectoryItem{
+				{
+					ID:                 "cat-finance",
+					Name:               "finance_lake",
+					Slug:               "finance_lake",
+					OwnerWorkspaceID:   "ws-finance",
+					OwnerWorkspaceName: "Finance Workspace",
+					SchemaCount:        3,
+					AccessStatus:       "approved",
+					AccessID:           "acc-100",
+				},
+			})
+		case r.URL.Path == "/api/catalogs/cat-finance/access" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]client.CatalogAccessItem{
+				{
+					ID:               "acc-100",
+					CatalogID:        "cat-finance",
+					WorkspaceID:      "ws-default",
+					WorkspaceName:    "default",
+					Mode:             "read",
+					Status:           "pending",
+					RequestedByEmail: "analyst@lake.io",
+					RequestedAt:      time.Now(),
+				},
+			})
+		case r.URL.Path == "/api/catalogs/cat-finance/access/request" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+		case r.URL.Path == "/api/catalogs/cat-finance/access/acc-100" && r.Method == http.MethodPatch:
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+		case r.URL.Path == "/api/catalogs/cat-finance/access/acc-100" && r.Method == http.MethodDelete:
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+
+	cfg = &config.Config{
+		CurrentContext: "test",
+		Contexts: map[string]config.Context{
+			"test": {Endpoint: ts.URL, Token: "test-token", Workspace: "default"},
+		},
+	}
+
+	// 1. Directory list
+	stdout, stderr, code := executeCatalogCommand(t, ts.URL, "catalog", "directory")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog directory failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "finance_lake") || !strings.Contains(stdout, "approved") {
+		t.Errorf("expected finance_lake in directory output, got:\n%s", stdout)
+	}
+
+	// 2. Access list
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "access", "list", "cat-finance")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog access list failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "acc-100") || !strings.Contains(stdout, "analyst@lake.io") {
+		t.Errorf("expected acc-100 in access list output, got:\n%s", stdout)
+	}
+
+	// 3. Access request
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "access", "request", "cat-finance", "--message", "Need Q4 metrics")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog access request failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, `"ok": true`) {
+		t.Errorf("expected ok confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 4. Access approve
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "access", "approve", "cat-finance", "acc-100")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog access approve failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, `"ok": true`) {
+		t.Errorf("expected ok confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 5. Access reject
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "access", "reject", "cat-finance", "acc-100")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog access reject failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, `"ok": true`) {
+		t.Errorf("expected ok confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 6. Access revoke
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "access", "revoke", "cat-finance", "acc-100", "--force")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog access revoke failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "revoked") {
+		t.Errorf("expected revoked confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+}
+

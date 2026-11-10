@@ -159,6 +159,34 @@ func TestIAMAndAdminClientMethods(t *testing.T) {
 		case r.URL.Path == "/api/admin/sessions/sess-1" && r.Method == http.MethodDelete:
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "revoked_id": "sess-1"})
 
+		// Admin platform services
+		case r.URL.Path == "/api/admin/services" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(PlatformServicesListResponse{
+				ClusterConnected: true,
+				Mode:             "in_cluster",
+				Namespace:        "lake-of-tears",
+				TotalServices:    1,
+				HealthyCount:     1,
+				Services: []PlatformServiceInfo{
+					{ID: "superset", Name: "lake-of-tears-superset", DisplayName: "Apache Superset", Status: "running"},
+				},
+			})
+
+		case r.URL.Path == "/api/admin/services/superset/restart" && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(PlatformServiceActionResponse{
+				Success: true, Service: "superset", Action: "restart",
+			})
+
+		case r.URL.Path == "/api/admin/services/superset/stop" && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(PlatformServiceActionResponse{
+				Success: true, Service: "superset", Action: "stop",
+			})
+
+		case r.URL.Path == "/api/admin/services/superset/start" && r.Method == http.MethodPost:
+			_ = json.NewEncoder(w).Encode(PlatformServiceActionResponse{
+				Success: true, Service: "superset", Action: "start",
+			})
+
 		default:
 			http.NotFound(w, r)
 		}
@@ -268,5 +296,20 @@ func TestIAMAndAdminClientMethods(t *testing.T) {
 
 	if err := c.RevokeSession("sess-1"); err != nil {
 		t.Fatalf("RevokeSession error: %v", err)
+	}
+
+	// 4. Platform Services
+	svcs, err := c.ListPlatformServices()
+	if err != nil || len(svcs.Services) != 1 || svcs.Services[0].ID != "superset" {
+		t.Fatalf("ListPlatformServices error: %v, %+v", err, svcs)
+	}
+	if _, err := c.RestartPlatformService("superset"); err != nil {
+		t.Fatalf("RestartPlatformService error: %v", err)
+	}
+	if _, err := c.StopPlatformService("superset"); err != nil {
+		t.Fatalf("StopPlatformService error: %v", err)
+	}
+	if _, err := c.StartPlatformService("superset"); err != nil {
+		t.Fatalf("StartPlatformService error: %v", err)
 	}
 }

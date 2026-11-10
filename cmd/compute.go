@@ -231,9 +231,130 @@ func runComputeTopology() error {
 	})
 }
 
+// ── Kubernetes Platform Service Lifecycle Controls ───────────────────────────
+
+var computeServicesCmd = &cobra.Command{
+	Use:     "services",
+	Aliases: []string{"service", "svc"},
+	Short:   "List Kubernetes platform deployments, replica counts, pod states, and resource specs",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runPlatformServicesList()
+	},
+}
+
+var computeRestartCmd = &cobra.Command{
+	Use:   "restart <service_name>",
+	Short: "Trigger a rolling restart of a platform deployment",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runPlatformServiceRestart(args[0])
+	},
+}
+
+var computeStopCmd = &cobra.Command{
+	Use:   "stop <service_name>",
+	Short: "Scale a non-core platform service deployment to 0 replicas",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runPlatformServiceStop(args[0])
+	},
+}
+
+var computeStartCmd = &cobra.Command{
+	Use:   "start <service_name>",
+	Short: "Scale a stopped platform service back to active replicas",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runPlatformServiceStart(args[0])
+	},
+}
+
+func runPlatformServicesList() error {
+	c := getClient()
+	resp, err := c.ListPlatformServices()
+	if err != nil {
+		return err
+	}
+
+	return ui.RenderOutput(resp, func() {
+		ui.PrintSuccess("Kubernetes Platform Services (%d healthy / %d total, mode: %s, ns: %s)",
+			resp.HealthyCount, resp.TotalServices, resp.Mode, resp.Namespace)
+
+		if len(resp.Services) == 0 {
+			ui.PrintInfo("No platform services found.")
+			return
+		}
+
+		headers := []string{"SERVICE ID", "DISPLAY NAME", "CATEGORY", "STATUS", "REPLICAS", "CORE", "POD"}
+		rows := make([][]string, len(resp.Services))
+		for i, s := range resp.Services {
+			replicasStr := fmt.Sprintf("%d/%d", s.ReadyReplicas, s.DesiredReplicas)
+			coreStr := "No"
+			if s.IsCore {
+				coreStr = "Yes"
+			}
+			podStr := "—"
+			if s.PodName != nil && *s.PodName != "" {
+				podStr = *s.PodName
+			}
+			rows[i] = []string{
+				s.ID,
+				s.DisplayName,
+				s.Category,
+				s.Status,
+				replicasStr,
+				coreStr,
+				podStr,
+			}
+		}
+
+		fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+	})
+}
+
+func runPlatformServiceRestart(serviceName string) error {
+	c := getClient()
+	res, err := c.RestartPlatformService(serviceName)
+	if err != nil {
+		return err
+	}
+
+	return ui.RenderOutput(res, func() {
+		ui.PrintSuccess("Platform service '%s' rolling restart triggered: %s", serviceName, res.Message)
+	})
+}
+
+func runPlatformServiceStop(serviceName string) error {
+	c := getClient()
+	res, err := c.StopPlatformService(serviceName)
+	if err != nil {
+		return err
+	}
+
+	return ui.RenderOutput(res, func() {
+		ui.PrintSuccess("Platform service '%s' stopped: %s", serviceName, res.Message)
+	})
+}
+
+func runPlatformServiceStart(serviceName string) error {
+	c := getClient()
+	res, err := c.StartPlatformService(serviceName)
+	if err != nil {
+		return err
+	}
+
+	return ui.RenderOutput(res, func() {
+		ui.PrintSuccess("Platform service '%s' started: %s", serviceName, res.Message)
+	})
+}
+
 func init() {
 	computeCmd.AddCommand(computeStatusCmd)
 	computeCmd.AddCommand(computeListCmd)
 	computeCmd.AddCommand(computeTopologyCmd)
+	computeCmd.AddCommand(computeServicesCmd)
+	computeCmd.AddCommand(computeRestartCmd)
+	computeCmd.AddCommand(computeStopCmd)
+	computeCmd.AddCommand(computeStartCmd)
 	rootCmd.AddCommand(computeCmd)
 }

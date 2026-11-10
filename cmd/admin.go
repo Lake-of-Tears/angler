@@ -666,6 +666,53 @@ var adminAIProvidersDismissDeprecationCmd = &cobra.Command{
 	},
 }
 
+// ── Kubernetes Platform Services (`angler admin services`) ──────────────────
+
+var adminServicesCmd = &cobra.Command{
+	Use:     "services",
+	Aliases: []string{"service", "svc"},
+	Short:   "Inspect and control Kubernetes platform service deployments (list, restart, stop, start)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runPlatformServicesList()
+	},
+}
+
+var adminServicesListCmd = &cobra.Command{
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "List Kubernetes platform deployments, replica counts, pod states, and resource specs",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runPlatformServicesList()
+	},
+}
+
+var adminServicesRestartCmd = &cobra.Command{
+	Use:   "restart <service_name>",
+	Short: "Trigger a rolling restart of a platform deployment",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runPlatformServiceRestart(args[0])
+	},
+}
+
+var adminServicesStopCmd = &cobra.Command{
+	Use:   "stop <service_name>",
+	Short: "Scale a non-core platform service deployment to 0 replicas",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runPlatformServiceStop(args[0])
+	},
+}
+
+var adminServicesStartCmd = &cobra.Command{
+	Use:   "start <service_name>",
+	Short: "Scale a stopped platform service back to active replicas",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runPlatformServiceStart(args[0])
+	},
+}
+
 func init() {
 	// Settings update flags
 	adminSettingsUpdateCmd.Flags().IntVar(&adminSessionTimeout, "session-timeout", 60, "Session inactivity timeout in minutes")
@@ -733,11 +780,18 @@ func init() {
 	adminAIProvidersCmd.AddCommand(adminAIProvidersDeprecationCmd)
 	adminAIProvidersCmd.AddCommand(adminAIProvidersDismissDeprecationCmd)
 
+	// Services hierarchy
+	adminServicesCmd.AddCommand(adminServicesListCmd)
+	adminServicesCmd.AddCommand(adminServicesRestartCmd)
+	adminServicesCmd.AddCommand(adminServicesStopCmd)
+	adminServicesCmd.AddCommand(adminServicesStartCmd)
+
 	// Admin hierarchy
 	adminCmd.AddCommand(adminSettingsCmd)
 	adminCmd.AddCommand(adminSessionsCmd)
 	adminCmd.AddCommand(adminVaultsCmd)
 	adminCmd.AddCommand(adminAIProvidersCmd)
+	adminCmd.AddCommand(adminServicesCmd)
 
 	rootCmd.AddCommand(adminCmd)
 }

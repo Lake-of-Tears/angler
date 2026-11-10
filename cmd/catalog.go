@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Lake-of-Tears/angler/internal/client"
 	"github.com/Lake-of-Tears/angler/internal/ui"
@@ -9,21 +10,29 @@ import (
 )
 
 var (
-	catDescription   string
-	catWorkspace     string
-	catPurge         bool
-	catForce         bool
-	catCascade       bool
-	catAnomalySource string
-	catAnomalyTable  string
-	catAnomalyContam float64
+	catDescription    string
+	catName           string
+	catS3Path         string
+	catWorkspace      string
+	catPurge          bool
+	catForce          bool
+	catCascade        bool
+	catAnomalySource  string
+	catAnomalyTable   string
+	catAnomalyContam  float64
+	catRestoreStrat   string
+	catRestoreNewName string
+	catAccessMode     string
+	catAccessMessage  string
+	catToonRaw        bool
 )
 
 var catalogCmd = &cobra.Command{
 	Use:     "catalog",
 	Aliases: []string{"net"},
 	Short:   "Unity Catalog-style metadata discovery and management (alias: net)",
-	Long: `Inspect datasets, catalogs, database schemas, tables, and data anomalies in Lake of Tears.
+	Long: `Inspect datasets, catalogs, database schemas, tables, soft-delete trash, TOON projections,
+cross-workspace sharing, and data anomalies in Lake of Tears.
 Modeled after Databricks Unity Catalog (catalogs, schemas, tables).
 
 Aliases:
@@ -33,9 +42,15 @@ Aliases:
 Examples:
   angler catalog list
   angler catalog get main
+  angler catalog update main --description "Production Lakehouse"
   angler catalog schemas list main
   angler catalog tables list main default
   angler catalog tables get main default users
+  angler catalog toon main default users
+  angler catalog trash list
+  angler catalog undrop <asset_id>
+  angler catalog directory
+  angler catalog access list main
   angler catalog manifest
   angler catalog anomalies detect --table users`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -506,20 +521,494 @@ func runCatalogList() error {
 	})
 }
 
+// ── Catalog, Schema & Table Updates + Native TOON Export ─────────────────────
+
+var catalogUpdateCmd = &cobra.Command{
+	Use:   "update <catalog_id>",
+	Short: "Update catalog description or name",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		var req client.UpdateCatalogRequest
+		if cmd.Flags().Changed("name") {
+			req.Name = &catName
+		}
+		if cmd.Flags().Changed("description") {
+			req.Description = &catDescription
+		}
+		if req.Name == nil && req.Description == nil {
+			return ui.NewUsageError(fmt.Errorf("at least one of --description or --name must be specified"))
+		}
+
+		c := getClient()
+		cat, err := c.UpdateCatalog(catalogID, req)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(cat, func() {
+			ui.PrintSuccess("Catalog '%s' updated.", cat.Name)
+		})
+	},
+}
+
+var catalogSchemasUpdateCmd = &cobra.Command{
+	Use:   "update <catalog_id> <schema_id>",
+	Short: "Update schema description",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		schemaID := args[1]
+
+		var req client.UpdateSchemaRequest
+		if cmd.Flags().Changed("description") {
+			req.Description = &catDescription
+		} else {
+			return ui.NewUsageError(fmt.Errorf("--description must be specified"))
+		}
+
+		c := getClient()
+		sch, err := c.UpdateSchema(catalogID, schemaID, req)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(sch, func() {
+			ui.PrintSuccess("Schema '%s' updated in catalog '%s'.", sch.Name, catalogID)
+		})
+	},
+}
+
+var catalogTablesUpdateCmd = &cobra.Command{
+	Use:   "update <catalog_id> <schema_id> <table_id>",
+	Short: "Update table description or S3 path pattern",
+	Args:  cobra.ExactArgs(3),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		schemaID := args[1]
+		tableID := args[2]
+
+		var req client.UpdateTableRequest
+		if cmd.Flags().Changed("description") {
+			req.Description = &catDescription
+		}
+		if cmd.Flags().Changed("s3-path") {
+			req.S3PathPattern = &catS3Path
+		}
+		if req.Description == nil && req.S3PathPattern == nil {
+			return ui.NewUsageError(fmt.Errorf("at least one of --description or --s3-path must be specified"))
+		}
+
+		c := getClient()
+		tbl, err := c.UpdateTable(catalogID, schemaID, tableID, req)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(tbl, func() {
+			ui.PrintSuccess("Table '%s' updated.", tbl.Name)
+		})
+	},
+}
+
+var catalogToonCmd = &cobra.Command{
+	Use:   "toon <catalog_id> <schema_id> [table_id]",
+	Short: "Export token-efficient TOON (Token-Oriented Object Notation) schema or table projection",
+	Args:  cobra.RangeArgs(2, 3),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		schemaID := args[1]
+		c := getClient()
+
+		if len(args) == 3 {
+			tableID := args[2]
+			res, err := c.GetTableTOON(catalogID, schemaID, tableID)
+			if err != nil {
+				return err
+			}
+			if catToonRaw {
+				fmt.Fprintln(ui.OutWriter, strings.TrimSpace(res.TOON))
+				return nil
+			}
+			return ui.RenderOutput(res, func() {
+				fmt.Fprintln(ui.OutWriter, strings.TrimSpace(res.TOON))
+			})
+		}
+
+		res, err := c.GetSchemaTOON(catalogID, schemaID)
+		if err != nil {
+			return err
+		}
+		if catToonRaw {
+			fmt.Fprintln(ui.OutWriter, strings.TrimSpace(res.TOON))
+			return nil
+		}
+		return ui.RenderOutput(res, func() {
+			fmt.Fprintln(ui.OutWriter, strings.TrimSpace(res.TOON))
+		})
+	},
+}
+
+// ── Catalog Soft-Delete Trash & Undrop Commands ──────────────────────────────
+
+var catalogTrashCmd = &cobra.Command{
+	Use:   "trash",
+	Short: "Manage soft-deleted catalogs, schemas, and tables in the workspace trash",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runCatalogTrashList()
+	},
+}
+
+var catalogTrashListCmd = &cobra.Command{
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "List soft-deleted catalogs, schemas, and tables in the workspace trash",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runCatalogTrashList()
+	},
+}
+
+func runCatalogTrashList() error {
+	c := getClient()
+	assets, err := c.ListCatalogTrash()
+	if err != nil {
+		return err
+	}
+
+	return ui.RenderOutput(assets, func() {
+		if len(assets) == 0 {
+			ui.PrintInfo("Workspace catalog trash is empty.")
+			return
+		}
+
+		headers := []string{"ASSET ID", "TYPE", "NAME", "CATALOG.SCHEMA", "DROPPED AT", "TTL REMAINING"}
+		rows := make([][]string, len(assets))
+		for i, a := range assets {
+			loc := a.CatalogName
+			if a.SchemaName != "" {
+				loc = fmt.Sprintf("%s.%s", a.CatalogName, a.SchemaName)
+			}
+			droppedStr := "—"
+			if !a.DroppedAt.IsZero() {
+				droppedStr = a.DroppedAt.Format("2006-01-02 15:04")
+			}
+			ttlStr := fmt.Sprintf("%.1f days", a.DaysRemaining)
+			rows[i] = []string{
+				a.ID,
+				a.AssetType,
+				a.Name,
+				loc,
+				droppedStr,
+				ttlStr,
+			}
+		}
+
+		fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+		ui.PrintSuccess("Total soft-deleted assets in trash: %d", len(assets))
+	})
+}
+
+func runCatalogTrashRestore(assetID string) error {
+	c := getClient()
+	var req *client.RestoreTrashAssetRequest
+	if catRestoreStrat != "" || catRestoreNewName != "" {
+		req = &client.RestoreTrashAssetRequest{
+			Strategy: catRestoreStrat,
+			NewName:  catRestoreNewName,
+		}
+	}
+
+	res, err := c.RestoreCatalogTrashAsset(assetID, req)
+	if err != nil {
+		return err
+	}
+
+	return ui.RenderOutput(res, func() {
+		ui.PrintSuccess("Soft-deleted asset '%s' restored from trash.", assetID)
+	})
+}
+
+var catalogTrashRestoreCmd = &cobra.Command{
+	Use:     "restore <asset_id>",
+	Aliases: []string{"undrop"},
+	Short:   "Restore a soft-deleted catalog, schema, or table from trash",
+	Args:    cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runCatalogTrashRestore(args[0])
+	},
+}
+
+var catalogUndropCmd = &cobra.Command{
+	Use:   "undrop <asset_id>",
+	Short: "Restore a soft-deleted catalog, schema, or table from trash (alias for 'trash restore')",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runCatalogTrashRestore(args[0])
+	},
+}
+
+var catalogTrashPurgeCmd = &cobra.Command{
+	Use:   "purge <asset_id>",
+	Short: "Permanently delete a specific trashed asset",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		assetID := args[0]
+		if !catForce && !assumeYes && !nonInteractive && !ui.IsNonInteractive() {
+			if !confirmAction(fmt.Sprintf("Permanently purge trashed asset '%s'? This cannot be undone.", assetID)) {
+				ui.PrintWarning("Purge aborted.")
+				return nil
+			}
+		}
+
+		c := getClient()
+		res, err := c.PurgeCatalogTrashAsset(assetID)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			ui.PrintSuccess("Trashed asset '%s' permanently purged.", assetID)
+		})
+	},
+}
+
+var catalogTrashPurgeExpiredCmd = &cobra.Command{
+	Use:   "purge-expired",
+	Short: "Permanently purge all trashed assets past their retention TTL",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if !catForce && !assumeYes && !nonInteractive && !ui.IsNonInteractive() {
+			if !confirmAction("Permanently purge all expired trashed assets?") {
+				ui.PrintWarning("Purge expired aborted.")
+				return nil
+			}
+		}
+
+		c := getClient()
+		res, err := c.PurgeExpiredCatalogTrash()
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			ui.PrintSuccess("Expired catalog trash purged.")
+		})
+	},
+}
+
+// ── User-Scoped Catalog Directory & Access Sharing Commands ──────────────────
+
+var catalogDirectoryCmd = &cobra.Command{
+	Use:   "directory",
+	Short: "List all discoverable catalogs across the organization with caller access status",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c := getClient()
+		items, err := c.ListCatalogDirectory(catWorkspace)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(items, func() {
+			if len(items) == 0 {
+				ui.PrintInfo("No external catalogs found in organization directory.")
+				return
+			}
+
+			headers := []string{"CATALOG ID", "NAME", "OWNER WORKSPACE", "SCHEMAS", "ACCESS STATUS"}
+			rows := make([][]string, len(items))
+			for i, it := range items {
+				owner := it.OwnerWorkspaceName
+				if owner == "" {
+					owner = it.OwnerWorkspaceID
+				}
+				rows[i] = []string{
+					it.ID,
+					it.Name,
+					owner,
+					fmt.Sprintf("%d", it.SchemaCount),
+					it.AccessStatus,
+				}
+			}
+
+			fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+			ui.PrintSuccess("Total directory catalogs: %d", len(items))
+		})
+	},
+}
+
+var catalogAccessCmd = &cobra.Command{
+	Use:   "access",
+	Short: "Manage user-scoped and cross-workspace catalog access requests and shares",
+}
+
+var catalogAccessListCmd = &cobra.Command{
+	Use:     "list <catalog_id>",
+	Aliases: []string{"ls"},
+	Short:   "List inbound access requests and active user-scoped shares for a catalog",
+	Args:    cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		c := getClient()
+		items, err := c.ListCatalogAccess(catalogID)
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(items, func() {
+			if len(items) == 0 {
+				ui.PrintInfo("No access requests or shares found for catalog '%s'.", catalogID)
+				return
+			}
+
+			headers := []string{"ACCESS ID", "WORKSPACE", "REQUESTED BY", "MODE", "STATUS", "REQUESTED AT"}
+			rows := make([][]string, len(items))
+			for i, it := range items {
+				ws := it.WorkspaceName
+				if ws == "" {
+					ws = it.WorkspaceID
+				}
+				reqAt := "—"
+				if !it.RequestedAt.IsZero() {
+					reqAt = it.RequestedAt.Format("2006-01-02 15:04")
+				}
+				rows[i] = []string{
+					it.ID,
+					ws,
+					it.RequestedByEmail,
+					it.Mode,
+					it.Status,
+					reqAt,
+				}
+			}
+
+			fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+			ui.PrintSuccess("Showing %d access entries.", len(items))
+		})
+	},
+}
+
+var catalogAccessRequestCmd = &cobra.Command{
+	Use:   "request <catalog_id>",
+	Short: "Request access to an external catalog",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		c := getClient()
+		res, err := c.RequestCatalogAccess(catalogID, client.RequestCatalogAccessRequest{
+			Mode:        catAccessMode,
+			Message:     catAccessMessage,
+			WorkspaceID: catWorkspace,
+		})
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			ui.PrintSuccess("Access request submitted for catalog '%s'.", catalogID)
+		})
+	},
+}
+
+var catalogAccessApproveCmd = &cobra.Command{
+	Use:   "approve <catalog_id> <access_id>",
+	Short: "Approve an inbound catalog access request",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		accessID := args[1]
+		c := getClient()
+		res, err := c.UpdateCatalogAccess(catalogID, accessID, "approved")
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			ui.PrintSuccess("Access request '%s' approved for catalog '%s'.", accessID, catalogID)
+		})
+	},
+}
+
+var catalogAccessRejectCmd = &cobra.Command{
+	Use:   "reject <catalog_id> <access_id>",
+	Short: "Reject an inbound catalog access request",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		accessID := args[1]
+		c := getClient()
+		res, err := c.UpdateCatalogAccess(catalogID, accessID, "rejected")
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			ui.PrintSuccess("Access request '%s' rejected for catalog '%s'.", accessID, catalogID)
+		})
+	},
+}
+
+var catalogAccessRevokeCmd = &cobra.Command{
+	Use:   "revoke <catalog_id> <access_id>",
+	Short: "Revoke a user-scoped catalog share",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		accessID := args[1]
+		if !catForce && !assumeYes && !nonInteractive && !ui.IsNonInteractive() {
+			if !confirmAction(fmt.Sprintf("Revoke access share '%s' on catalog '%s'?", accessID, catalogID)) {
+				ui.PrintWarning("Revoke aborted.")
+				return nil
+			}
+		}
+
+		c := getClient()
+		if err := c.RevokeCatalogAccess(catalogID, accessID); err != nil {
+			return err
+		}
+
+		res := map[string]interface{}{"ok": true, "revoked_id": accessID}
+		return ui.RenderOutput(res, func() {
+			ui.PrintSuccess("Access share '%s' revoked from catalog '%s'.", accessID, catalogID)
+		})
+	},
+}
+
 func init() {
 	// Catalog flags
 	catalogCreateCmd.Flags().StringVarP(&catDescription, "description", "d", "", "Catalog description")
 	catalogCreateCmd.Flags().StringVarP(&catWorkspace, "workspace", "w", "", "Owning workspace ID or slug")
+	catalogUpdateCmd.Flags().StringVarP(&catDescription, "description", "d", "", "Updated catalog description")
+	catalogUpdateCmd.Flags().StringVar(&catName, "name", "", "Updated catalog name")
 	catalogDeleteCmd.Flags().BoolVarP(&catForce, "force", "f", false, "Force delete without confirmation")
 	catalogDeleteCmd.Flags().BoolVar(&catPurge, "purge", false, "Permanently purge catalog and bypass soft delete")
 
 	// Schemas flags
 	catalogSchemasCreateCmd.Flags().StringVarP(&catDescription, "description", "d", "", "Schema description")
+	catalogSchemasUpdateCmd.Flags().StringVarP(&catDescription, "description", "d", "", "Updated schema description")
 	catalogSchemasDeleteCmd.Flags().BoolVarP(&catForce, "force", "f", false, "Force delete without confirmation")
 	catalogSchemasDeleteCmd.Flags().BoolVar(&catCascade, "cascade", false, "Cascade delete all tables in schema")
 
 	// Tables flags
+	catalogTablesUpdateCmd.Flags().StringVarP(&catDescription, "description", "d", "", "Updated table description")
+	catalogTablesUpdateCmd.Flags().StringVar(&catS3Path, "s3-path", "", "Updated S3 path pattern")
 	catalogTablesDeleteCmd.Flags().BoolVarP(&catForce, "force", "f", false, "Force delete without confirmation")
+
+	// TOON flags
+	catalogToonCmd.Flags().BoolVar(&catToonRaw, "raw", false, "Print raw TOON text without JSON wrapper")
+
+	// Trash & Undrop flags
+	for _, cmd := range []*cobra.Command{catalogTrashRestoreCmd, catalogUndropCmd} {
+		cmd.Flags().StringVar(&catRestoreStrat, "strategy", "", "Conflict resolution strategy (rename or replace)")
+		cmd.Flags().StringVar(&catRestoreNewName, "new-name", "", "New asset name when using --strategy rename")
+	}
+	catalogTrashPurgeCmd.Flags().BoolVarP(&catForce, "force", "f", false, "Force permanent purge without confirmation")
+	catalogTrashPurgeExpiredCmd.Flags().BoolVarP(&catForce, "force", "f", false, "Force permanent purge of expired assets without confirmation")
+
+	// Directory & Access flags
+	catalogDirectoryCmd.Flags().StringVarP(&catWorkspace, "workspace", "w", "", "Caller workspace ID for directory lookup")
+	catalogAccessRequestCmd.Flags().StringVarP(&catAccessMessage, "message", "m", "Requested via Angler CLI", "Reason message for requesting catalog access")
+	catalogAccessRequestCmd.Flags().StringVar(&catAccessMode, "mode", "read", "Requested access mode (read or write)")
+	catalogAccessRequestCmd.Flags().StringVarP(&catWorkspace, "workspace", "w", "", "Requesting workspace ID")
+	catalogAccessRevokeCmd.Flags().BoolVarP(&catForce, "force", "f", false, "Revoke without confirmation")
 
 	// Anomalies flags
 	catalogAnomaliesDetectCmd.Flags().StringVar(&catAnomalySource, "source", "", "Data source filter")
@@ -530,12 +1019,27 @@ func init() {
 	catalogSchemasCmd.AddCommand(catalogSchemasListCmd)
 	catalogSchemasCmd.AddCommand(catalogSchemasGetCmd)
 	catalogSchemasCmd.AddCommand(catalogSchemasCreateCmd)
+	catalogSchemasCmd.AddCommand(catalogSchemasUpdateCmd)
 	catalogSchemasCmd.AddCommand(catalogSchemasDeleteCmd)
 
 	// Register subcommands under catalogTablesCmd
 	catalogTablesCmd.AddCommand(catalogTablesListCmd)
 	catalogTablesCmd.AddCommand(catalogTablesGetCmd)
+	catalogTablesCmd.AddCommand(catalogTablesUpdateCmd)
 	catalogTablesCmd.AddCommand(catalogTablesDeleteCmd)
+
+	// Register subcommands under catalogTrashCmd
+	catalogTrashCmd.AddCommand(catalogTrashListCmd)
+	catalogTrashCmd.AddCommand(catalogTrashRestoreCmd)
+	catalogTrashCmd.AddCommand(catalogTrashPurgeCmd)
+	catalogTrashCmd.AddCommand(catalogTrashPurgeExpiredCmd)
+
+	// Register subcommands under catalogAccessCmd
+	catalogAccessCmd.AddCommand(catalogAccessListCmd)
+	catalogAccessCmd.AddCommand(catalogAccessRequestCmd)
+	catalogAccessCmd.AddCommand(catalogAccessApproveCmd)
+	catalogAccessCmd.AddCommand(catalogAccessRejectCmd)
+	catalogAccessCmd.AddCommand(catalogAccessRevokeCmd)
 
 	// Register subcommands under catalogAnomaliesCmd
 	catalogAnomaliesCmd.AddCommand(catalogAnomaliesDetectCmd)
@@ -544,9 +1048,15 @@ func init() {
 	catalogCmd.AddCommand(catalogListCmd)
 	catalogCmd.AddCommand(catalogGetCmd)
 	catalogCmd.AddCommand(catalogCreateCmd)
+	catalogCmd.AddCommand(catalogUpdateCmd)
 	catalogCmd.AddCommand(catalogDeleteCmd)
 	catalogCmd.AddCommand(catalogSchemasCmd)
 	catalogCmd.AddCommand(catalogTablesCmd)
+	catalogCmd.AddCommand(catalogToonCmd)
+	catalogCmd.AddCommand(catalogTrashCmd)
+	catalogCmd.AddCommand(catalogUndropCmd)
+	catalogCmd.AddCommand(catalogDirectoryCmd)
+	catalogCmd.AddCommand(catalogAccessCmd)
 	catalogCmd.AddCommand(catalogManifestCmd)
 	catalogCmd.AddCommand(catalogAnomaliesCmd)
 

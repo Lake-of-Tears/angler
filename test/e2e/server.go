@@ -93,6 +93,10 @@ func NewMockBackend() *MockBackend {
 	mux.HandleFunc("/api/bundles", mb.handleBundles)
 	mux.HandleFunc("/api/bundles/", mb.handleBundles)
 
+	// 13. Kubernetes Platform Services (#45)
+	mux.HandleFunc("/api/admin/services", mb.handleAdminServices)
+	mux.HandleFunc("/api/admin/services/", mb.handleAdminServices)
+
 	mb.Server = httptest.NewServer(mux)
 	mb.URL = mb.Server.URL
 	return mb
@@ -396,8 +400,57 @@ func (mb *MockBackend) handleCatalogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	parts := strings.Split(strings.Trim(path, "/"), "/")
+
+	// Trash endpoints: /api/catalogs/trash...
+	if parts[0] == "trash" {
+		if len(parts) == 1 && r.Method == http.MethodGet {
+			_ = json.NewEncoder(w).Encode([]client.DeletedCatalogAsset{
+				{
+					ID:            "trash-e2e-001",
+					CatalogName:   "default_catalog",
+					SchemaName:    "analytics",
+					AssetType:     "table",
+					Name:          "dropped_events",
+					Slug:          "dropped_events",
+					DroppedAt:     time.Now(),
+					DaysRemaining: 6.5,
+				},
+			})
+			return
+		}
+		if len(parts) == 2 && parts[1] == "purge-expired" && r.Method == http.MethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "purged_count": 1})
+			return
+		}
+		if len(parts) == 3 && parts[2] == "restore" && r.Method == http.MethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "restored_id": parts[1]})
+			return
+		}
+		if len(parts) == 3 && parts[2] == "purge" && r.Method == http.MethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "purged_id": parts[1]})
+			return
+		}
+	}
+
+	// Directory endpoint: /api/catalogs/directory
+	if len(parts) == 1 && parts[0] == "directory" && r.Method == http.MethodGet {
+		_ = json.NewEncoder(w).Encode([]client.CatalogDirectoryItem{
+			{
+				ID:                 "cat-shared-001",
+				Name:               "biomedical_lake",
+				Slug:               "biomedical_lake",
+				OwnerWorkspaceID:   "ws-bio",
+				OwnerWorkspaceName: "Biomedical Research",
+				SchemaCount:        3,
+				AccessStatus:       "approved",
+				AccessID:           "acc-e2e-001",
+			},
+		})
+		return
+	}
+
 	if len(parts) == 1 {
-		// /api/catalogs/:id
+		// /api/catalogs/:id (GET or PATCH)
 		_ = json.NewEncoder(w).Encode(client.Catalog{
 			ID:          parts[0],
 			Name:        "default_catalog",
@@ -406,6 +459,33 @@ func (mb *MockBackend) handleCatalogs(w http.ResponseWriter, r *http.Request) {
 			IsDefault:   true,
 		})
 		return
+	}
+
+	// Access endpoints: /api/catalogs/:id/access...
+	if len(parts) >= 2 && parts[1] == "access" {
+		if len(parts) == 2 && r.Method == http.MethodGet {
+			_ = json.NewEncoder(w).Encode([]client.CatalogAccessItem{
+				{
+					ID:               "acc-e2e-001",
+					CatalogID:        parts[0],
+					WorkspaceID:      "ws-default",
+					WorkspaceName:    "default",
+					Mode:             "read",
+					Status:           "approved",
+					RequestedByEmail: "analyst@thelakeoftears.com",
+					RequestedAt:      time.Now(),
+				},
+			})
+			return
+		}
+		if len(parts) == 3 && parts[2] == "request" && r.Method == http.MethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+			return
+		}
+		if len(parts) == 3 && (r.Method == http.MethodPatch || r.Method == http.MethodDelete) {
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "access_id": parts[2]})
+			return
+		}
 	}
 
 	if len(parts) == 2 && parts[1] == "schemas" {
@@ -421,6 +501,27 @@ func (mb *MockBackend) handleCatalogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(parts) == 3 && parts[1] == "schemas" && r.Method == http.MethodPatch {
+		_ = json.NewEncoder(w).Encode(client.CatalogSchema{
+			ID:          parts[2],
+			CatalogID:   parts[0],
+			Name:        "analytics",
+			Slug:        "analytics",
+			Description: "Updated analytics schema",
+		})
+		return
+	}
+
+	if len(parts) == 4 && parts[1] == "schemas" && parts[3] == "toon" {
+		_ = json.NewEncoder(w).Encode(client.TOONExportResponse{
+			OK:      true,
+			TOON:    "schema: analytics\ncatalog: default_catalog\ntables[1]{name}:\n  events",
+			Catalog: parts[0],
+			Schema:  parts[2],
+		})
+		return
+	}
+
 	if len(parts) == 4 && parts[1] == "schemas" && parts[3] == "tables" {
 		// /api/catalogs/:id/schemas/:schema_id/tables
 		_ = json.NewEncoder(w).Encode([]client.CatalogTable{
@@ -430,6 +531,28 @@ func (mb *MockBackend) handleCatalogs(w http.ResponseWriter, r *http.Request) {
 				Name:     "events",
 				Slug:     "events",
 			},
+		})
+		return
+	}
+
+	if len(parts) == 5 && parts[1] == "schemas" && parts[3] == "tables" && r.Method == http.MethodPatch {
+		_ = json.NewEncoder(w).Encode(client.CatalogTable{
+			ID:          parts[4],
+			SchemaID:    parts[2],
+			Name:        "events",
+			Slug:        "events",
+			Description: "Updated events table",
+		})
+		return
+	}
+
+	if len(parts) == 6 && parts[1] == "schemas" && parts[3] == "tables" && parts[5] == "toon" {
+		_ = json.NewEncoder(w).Encode(client.TOONExportResponse{
+			OK:      true,
+			TOON:    "table: events\nschema: analytics\ncolumns[2]{name,type}:\n  id,UUID\n  event_type,VARCHAR",
+			Catalog: parts[0],
+			Schema:  parts[2],
+			Table:   parts[4],
 		})
 		return
 	}
@@ -786,3 +909,58 @@ func (mb *MockBackend) handleBundles(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	}
 }
+
+func (mb *MockBackend) handleAdminServices(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	path := strings.TrimPrefix(r.URL.Path, "/api/admin/services")
+
+	if r.Method == http.MethodGet && (path == "" || path == "/") {
+		_ = json.NewEncoder(w).Encode(client.PlatformServicesListResponse{
+			ClusterConnected: true,
+			Mode:             "in_cluster",
+			Namespace:        "lake-of-tears",
+			TotalServices:    2,
+			HealthyCount:     2,
+			Services: []client.PlatformServiceInfo{
+				{
+					ID:              "backend",
+					Name:            "lake-of-tears-backend",
+					DisplayName:     "Lake Backend API",
+					Category:        "Core Platform",
+					Status:          "running",
+					DesiredReplicas: 1,
+					ReadyReplicas:   1,
+					IsCore:          true,
+				},
+				{
+					ID:              "superset",
+					Name:            "lake-of-tears-superset",
+					DisplayName:     "Apache Superset",
+					Category:        "Analytics",
+					Status:          "running",
+					DesiredReplicas: 1,
+					ReadyReplicas:   1,
+					IsCore:          false,
+				},
+			},
+		})
+		return
+	}
+
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) == 2 && r.Method == http.MethodPost {
+		svcName := parts[0]
+		action := parts[1]
+		_ = json.NewEncoder(w).Encode(client.PlatformServiceActionResponse{
+			Success:    true,
+			Service:    svcName,
+			Deployment: "lake-of-tears-" + svcName,
+			Action:     action,
+			Message:    fmt.Sprintf("Service '%s' %s completed.", svcName, action),
+		})
+		return
+	}
+
+	http.NotFound(w, r)
+}
+

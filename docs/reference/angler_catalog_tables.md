@@ -35,4 +35,5 @@ List, inspect, and drop tables within a catalog schema.
 * [angler catalog tables delete](angler_catalog_tables_delete.md)	 - Drop a table from a catalog schema
 * [angler catalog tables get](angler_catalog_tables_get.md)	 - Inspect table schema, column types, and storage pattern
 * [angler catalog tables list](angler_catalog_tables_list.md)	 - List all tables in a catalog schema
+* [angler catalog tables update](angler_catalog_tables_update.md)	 - Update table description or S3 path pattern
 

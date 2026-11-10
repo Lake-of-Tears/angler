@@ -142,3 +142,107 @@ func TestCatalogClientEndpoints(t *testing.T) {
 		t.Fatalf("DetectAnomalies failed: %v", err)
 	}
 }
+
+func TestCatalogTrashTOONUpdateAndAccessClient(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/catalogs/trash" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]DeletedCatalogAsset{
+				{ID: "tr-1", Name: "old_tbl", AssetType: "table", DaysRemaining: 5.5},
+			})
+		case r.URL.Path == "/api/catalogs/trash/tr-1/restore" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "restored_id": "tr-1"})
+		case r.URL.Path == "/api/catalogs/trash/tr-1/purge" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "purged_id": "tr-1"})
+		case r.URL.Path == "/api/catalogs/trash/purge-expired" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "purged_count": 3})
+		case r.URL.Path == "/api/catalogs/cat-001" && r.Method == http.MethodPatch:
+			json.NewEncoder(w).Encode(Catalog{ID: "cat-001", Name: "main", Description: "Updated"})
+		case r.URL.Path == "/api/catalogs/cat-001/schemas/sch-001" && r.Method == http.MethodPatch:
+			json.NewEncoder(w).Encode(CatalogSchema{ID: "sch-001", Name: "default", Description: "Updated"})
+		case r.URL.Path == "/api/catalogs/cat-001/schemas/sch-001/tables/tbl-001" && r.Method == http.MethodPatch:
+			json.NewEncoder(w).Encode(CatalogTable{ID: "tbl-001", Name: "users", Description: "Updated"})
+		case r.URL.Path == "/api/catalogs/cat-001/schemas/sch-001/toon" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(TOONExportResponse{OK: true, TOON: "schema: default"})
+		case r.URL.Path == "/api/catalogs/cat-001/schemas/sch-001/tables/tbl-001/toon" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(TOONExportResponse{OK: true, TOON: "table: users"})
+		case r.URL.Path == "/api/catalogs/directory" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]CatalogDirectoryItem{
+				{ID: "cat-ext", Name: "external_cat", AccessStatus: "approved"},
+			})
+		case r.URL.Path == "/api/catalogs/cat-ext/access" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]CatalogAccessItem{
+				{ID: "acc-1", CatalogID: "cat-ext", Mode: "read", Status: "pending"},
+			})
+		case r.URL.Path == "/api/catalogs/cat-ext/access/request" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+		case r.URL.Path == "/api/catalogs/cat-ext/access/acc-1" && r.Method == http.MethodPatch:
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+		case r.URL.Path == "/api/catalogs/cat-ext/access/acc-1" && r.Method == http.MethodDelete:
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+
+	c := NewClient(config.Context{Endpoint: ts.URL, Workspace: "default", WorkspaceID: "ws-1"})
+
+	// Trash
+	trash, err := c.ListCatalogTrash()
+	if err != nil || len(trash) != 1 || trash[0].ID != "tr-1" {
+		t.Fatalf("ListCatalogTrash failed: %v", err)
+	}
+	if _, err := c.RestoreCatalogTrashAsset("tr-1", nil); err != nil {
+		t.Fatalf("RestoreCatalogTrashAsset failed: %v", err)
+	}
+	if _, err := c.PurgeCatalogTrashAsset("tr-1"); err != nil {
+		t.Fatalf("PurgeCatalogTrashAsset failed: %v", err)
+	}
+	if _, err := c.PurgeExpiredCatalogTrash(); err != nil {
+		t.Fatalf("PurgeExpiredCatalogTrash failed: %v", err)
+	}
+
+	// Update
+	desc := "Updated"
+	if _, err := c.UpdateCatalog("cat-001", UpdateCatalogRequest{Description: &desc}); err != nil {
+		t.Fatalf("UpdateCatalog failed: %v", err)
+	}
+	if _, err := c.UpdateSchema("cat-001", "sch-001", UpdateSchemaRequest{Description: &desc}); err != nil {
+		t.Fatalf("UpdateSchema failed: %v", err)
+	}
+	if _, err := c.UpdateTable("cat-001", "sch-001", "tbl-001", UpdateTableRequest{Description: &desc}); err != nil {
+		t.Fatalf("UpdateTable failed: %v", err)
+	}
+
+	// TOON
+	schToon, err := c.GetSchemaTOON("cat-001", "sch-001")
+	if err != nil || schToon.TOON != "schema: default" {
+		t.Fatalf("GetSchemaTOON failed: %v", err)
+	}
+	tblToon, err := c.GetTableTOON("cat-001", "sch-001", "tbl-001")
+	if err != nil || tblToon.TOON != "table: users" {
+		t.Fatalf("GetTableTOON failed: %v", err)
+	}
+
+	// Directory & Access
+	dir, err := c.ListCatalogDirectory("ws-1")
+	if err != nil || len(dir) != 1 || dir[0].Name != "external_cat" {
+		t.Fatalf("ListCatalogDirectory failed: %v", err)
+	}
+	acc, err := c.ListCatalogAccess("cat-ext")
+	if err != nil || len(acc) != 1 || acc[0].ID != "acc-1" {
+		t.Fatalf("ListCatalogAccess failed: %v", err)
+	}
+	if _, err := c.RequestCatalogAccess("cat-ext", RequestCatalogAccessRequest{Message: "Test"}); err != nil {
+		t.Fatalf("RequestCatalogAccess failed: %v", err)
+	}
+	if _, err := c.UpdateCatalogAccess("cat-ext", "acc-1", "approved"); err != nil {
+		t.Fatalf("UpdateCatalogAccess failed: %v", err)
+	}
+	if err := c.RevokeCatalogAccess("cat-ext", "acc-1"); err != nil {
+		t.Fatalf("RevokeCatalogAccess failed: %v", err)
+	}
+}
+
