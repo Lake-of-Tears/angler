@@ -385,3 +385,91 @@ func TestJobsPauseAndUnpauseAndDelete(t *testing.T) {
 		t.Errorf("expected delete success: %s", stdout)
 	}
 }
+
+// TestJobsShowsWallClockRunTimes covers #479: a scheduled run's logical date is one
+// interval before it fires, so `jobs get` and `jobs runs list` must show the fire
+// time and actual start time rather than the logical date.
+func TestJobsShowsWallClockRunTimes(t *testing.T) {
+	logical := time.Date(2026, 11, 11, 19, 0, 0, 0, time.UTC)
+	fired := time.Date(2026, 11, 12, 1, 0, 0, 0, time.UTC)
+	nextLogical := time.Date(2026, 11, 12, 1, 0, 0, 0, time.UTC)
+	nextFire := time.Date(2026, 11, 12, 7, 0, 0, 0, time.UTC)
+	dur := 91.9
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/pipelines/email_etl", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(client.PipelineDetail{
+			DagID:            "email_etl",
+			PipelineName:     "Email ETL",
+			ScheduleInterval: "0 1,7,13,19 * * *",
+			NextDagrun:       &nextLogical,
+			NextRunAt:        &nextFire,
+			LastRun: &client.PipelineLatestRun{
+				DagRunID:          "scheduled__2026-11-11T19:00:00+00:00",
+				State:             "success",
+				RunType:           "scheduled",
+				ExecutionDate:     &logical,
+				DataIntervalStart: &logical,
+				DataIntervalEnd:   &fired,
+				StartDate:         &fired,
+				DurationSeconds:   &dur,
+			},
+		})
+	})
+	mux.HandleFunc("/api/pipelines/email_etl/runs", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(client.PipelineRunsResponse{
+			DagID: "email_etl",
+			Total: 1,
+			Runs: []client.PipelineRun{{
+				DagRunID:          "scheduled__2026-11-11T19:00:00+00:00",
+				State:             "success",
+				RunType:           "scheduled",
+				ExecutionDate:     "2026-11-11T19:00:00+00:00",
+				DataIntervalStart: "2026-11-11T19:00:00+00:00",
+				DataIntervalEnd:   "2026-11-12T01:00:00+00:00",
+				StartDate:         "2026-11-12T01:00:00.532654+00:00",
+				DurationSeconds:   &dur,
+			}},
+		})
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	// The --json call below sets the global jsonOutput flag; clear it for later tests.
+	t.Cleanup(resetJobsFlags)
+
+	resetJobsFlags()
+	stdout, stderr, code := executeCLIForTest(t, true, "jobs", "get", "email_etl", "--endpoint", ts.URL, "--token", "test-tok")
+	if code != ui.ExitOK {
+		t.Fatalf("expected code 0, got %d (stderr: %s)", code, stderr)
+	}
+	if !strings.Contains(stdout, "Next Run:    2026-11-12 07:00:00 UTC") {
+		t.Errorf("expected next fire time, not logical date, in get output: %s", stdout)
+	}
+	if !strings.Contains(stdout, "Covers:      2026-11-11 19:00:00 → 2026-11-12 01:00:00") {
+		t.Errorf("expected data interval for scheduled last run: %s", stdout)
+	}
+
+	resetJobsFlags()
+	stdout, stderr, code = executeCLIForTest(t, true, "jobs", "runs", "list", "email_etl", "--endpoint", ts.URL, "--token", "test-tok")
+	if code != ui.ExitOK {
+		t.Fatalf("expected code 0, got %d (stderr: %s)", code, stderr)
+	}
+	if !strings.Contains(stdout, "STARTED") || !strings.Contains(stdout, "2026-11-12T01:00:00.532654+00:00") {
+		t.Errorf("expected STARTED column with actual start time: %s", stdout)
+	}
+
+	resetJobsFlags()
+	stdout, _, _ = executeCLIForTest(t, false, "jobs", "get", "email_etl", "--json", "--endpoint", ts.URL, "--token", "test-tok")
+	var detail client.PipelineDetail
+	if err := json.Unmarshal([]byte(stdout), &detail); err != nil {
+		t.Fatalf("failed to parse JSON detail: %v\nstdout: %s", err, stdout)
+	}
+	if detail.NextRunAt == nil || !detail.NextRunAt.Equal(nextFire) {
+		t.Errorf("expected next_run_at to survive JSON output, got %+v", detail.NextRunAt)
+	}
+	if detail.LastRun == nil || detail.LastRun.DataIntervalEnd == nil || detail.LastRun.RunType != "scheduled" {
+		t.Errorf("expected run_type and data interval on last_run, got %+v", detail.LastRun)
+	}
+}
