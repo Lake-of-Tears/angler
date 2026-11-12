@@ -14,14 +14,20 @@ import (
 	"time"
 )
 
-// PipelineLatestRun describes the most recent run of a pipeline.
+// PipelineLatestRun describes the most recently created run of a pipeline.
+//
+// ExecutionDate is Airflow's logical date: for a scheduled run it is the start of
+// the data interval the run covers, not when it ran. Use StartDate for that.
 type PipelineLatestRun struct {
-	DagRunID        string     `json:"dag_run_id"`
-	State           string     `json:"state"`
-	ExecutionDate   *time.Time `json:"execution_date,omitempty"`
-	StartDate       *time.Time `json:"start_date,omitempty"`
-	EndDate         *time.Time `json:"end_date,omitempty"`
-	DurationSeconds *float64   `json:"duration_seconds,omitempty"`
+	DagRunID          string     `json:"dag_run_id"`
+	State             string     `json:"state"`
+	RunType           string     `json:"run_type,omitempty"`
+	ExecutionDate     *time.Time `json:"execution_date,omitempty"`
+	DataIntervalStart *time.Time `json:"data_interval_start,omitempty"`
+	DataIntervalEnd   *time.Time `json:"data_interval_end,omitempty"`
+	StartDate         *time.Time `json:"start_date,omitempty"`
+	EndDate           *time.Time `json:"end_date,omitempty"`
+	DurationSeconds   *float64   `json:"duration_seconds,omitempty"`
 }
 
 // Pipeline describes an individual workflow DAG, pipeline, or scheduled job.
@@ -34,6 +40,7 @@ type Pipeline struct {
 	IsPaused            bool               `json:"is_paused"`
 	ScheduleInterval    string             `json:"schedule_interval"`
 	NextDagrun          *time.Time         `json:"next_dagrun,omitempty"`
+	NextRunAt           *time.Time         `json:"next_run_at,omitempty"`
 	Tags                []string           `json:"tags,omitempty"`
 	IsNotebookJob       bool               `json:"is_notebook_job"`
 	NotebookPath        string             `json:"notebook_path,omitempty"`
@@ -63,6 +70,8 @@ type PipelineDetail struct {
 	Description      string             `json:"description,omitempty"`
 	IsPaused         bool               `json:"is_paused"`
 	ScheduleInterval string             `json:"schedule_interval"`
+	NextDagrun       *time.Time         `json:"next_dagrun,omitempty"`
+	NextRunAt        *time.Time         `json:"next_run_at,omitempty"`
 	Tags             []string           `json:"tags,omitempty"`
 	IsNotebookJob    bool               `json:"is_notebook_job"`
 	NotebookPath     string             `json:"notebook_path,omitempty"`
@@ -84,13 +93,25 @@ type PipelineTriggerResponse struct {
 
 // PipelineRun describes a past or in-flight execution run.
 type PipelineRun struct {
-	DagRunID        string         `json:"dag_run_id"`
-	State           string         `json:"state"`
-	ExecutionDate   string         `json:"execution_date"`
-	StartDate       string         `json:"start_date,omitempty"`
-	EndDate         string         `json:"end_date,omitempty"`
-	DurationSeconds *float64       `json:"duration_seconds,omitempty"`
-	Conf            map[string]any `json:"conf,omitempty"`
+	DagRunID          string         `json:"dag_run_id"`
+	State             string         `json:"state"`
+	RunType           string         `json:"run_type,omitempty"`
+	ExecutionDate     string         `json:"execution_date"`
+	DataIntervalStart string         `json:"data_interval_start,omitempty"`
+	DataIntervalEnd   string         `json:"data_interval_end,omitempty"`
+	StartDate         string         `json:"start_date,omitempty"`
+	EndDate           string         `json:"end_date,omitempty"`
+	DurationSeconds   *float64       `json:"duration_seconds,omitempty"`
+	Conf              map[string]any `json:"conf,omitempty"`
+}
+
+// NextFireTime returns when the next scheduled run starts. NextDagrun is the
+// next run's logical date, which Airflow schedules one interval later.
+func NextFireTime(nextRunAt, nextDagrun *time.Time) *time.Time {
+	if nextRunAt != nil {
+		return nextRunAt
+	}
+	return nextDagrun
 }
 
 // PipelineRunsResponse wraps the list of execution runs.

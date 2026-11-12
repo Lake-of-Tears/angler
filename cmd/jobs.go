@@ -180,6 +180,9 @@ func runJobsGet(cmd *cobra.Command, args []string) error {
 		if detail.WebhookURL != "" {
 			fmt.Fprintf(ui.OutWriter, "  Webhook URL: %s\n", detail.WebhookURL)
 		}
+		if next := client.NextFireTime(detail.NextRunAt, detail.NextDagrun); next != nil && !detail.IsPaused {
+			fmt.Fprintf(ui.OutWriter, "  Next Run:    %s\n", next.Format("2006-01-02 15:04:05 MST"))
+		}
 		if len(detail.Tags) > 0 {
 			fmt.Fprintf(ui.OutWriter, "  Tags:        %s\n", strings.Join(detail.Tags, ", "))
 		}
@@ -193,6 +196,11 @@ func runJobsGet(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(ui.OutWriter, "  State:       %s\n", strings.ToUpper(detail.LastRun.State))
 			if detail.LastRun.StartDate != nil {
 				fmt.Fprintf(ui.OutWriter, "  Started:     %s\n", detail.LastRun.StartDate.Format("2006-01-02 15:04:05"))
+			}
+			if detail.LastRun.RunType == "scheduled" && detail.LastRun.DataIntervalStart != nil && detail.LastRun.DataIntervalEnd != nil {
+				fmt.Fprintf(ui.OutWriter, "  Covers:      %s → %s\n",
+					detail.LastRun.DataIntervalStart.Format("2006-01-02 15:04:05"),
+					detail.LastRun.DataIntervalEnd.Format("2006-01-02 15:04:05"))
 			}
 			if detail.LastRun.DurationSeconds != nil {
 				fmt.Fprintf(ui.OutWriter, "  Duration:    %.1fs\n", *detail.LastRun.DurationSeconds)
@@ -451,16 +459,21 @@ var jobsRunsListCmd = &cobra.Command{
 				return
 			}
 
-			headers := []string{"RUN ID", "STATE", "EXECUTION DATE", "DURATION"}
+			headers := []string{"RUN ID", "STATE", "STARTED", "LOGICAL DATE", "DURATION"}
 			rows := make([][]string, len(resp.Runs))
 			for i, r := range resp.Runs {
 				durStr := "-"
 				if r.DurationSeconds != nil {
 					durStr = fmt.Sprintf("%.1fs", *r.DurationSeconds)
 				}
+				started := r.StartDate
+				if started == "" {
+					started = "-"
+				}
 				rows[i] = []string{
 					r.DagRunID,
 					strings.ToUpper(r.State),
+					started,
 					r.ExecutionDate,
 					durStr,
 				}
@@ -499,9 +512,12 @@ var jobsRunsGetCmd = &cobra.Command{
 		return ui.RenderOutput(payload, func() {
 			ui.PrintSuccess("Pipeline Run: %s (%s)", run.DagRunID, strings.ToUpper(run.State))
 			fmt.Fprintf(ui.OutWriter, "  Pipeline:   %s\n", dagID)
-			fmt.Fprintf(ui.OutWriter, "  Executed:   %s\n", run.ExecutionDate)
 			if run.StartDate != "" {
 				fmt.Fprintf(ui.OutWriter, "  Started:    %s\n", run.StartDate)
+			}
+			fmt.Fprintf(ui.OutWriter, "  Logical:    %s\n", run.ExecutionDate)
+			if run.RunType == "scheduled" && run.DataIntervalStart != "" && run.DataIntervalEnd != "" {
+				fmt.Fprintf(ui.OutWriter, "  Covers:     %s → %s\n", run.DataIntervalStart, run.DataIntervalEnd)
 			}
 			if run.EndDate != "" {
 				fmt.Fprintf(ui.OutWriter, "  Ended:      %s\n", run.EndDate)
