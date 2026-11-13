@@ -191,9 +191,20 @@ func TestCollectLocalFiles(t *testing.T) {
 	_ = os.MkdirAll(srcDir, 0755)
 	_ = os.WriteFile(filepath.Join(srcDir, "requirements.txt"), []byte("pandas>=2.0\nhttpx\n"), 0644)
 
+	tasksDir := filepath.Join(tempDir, "tasks")
+	_ = os.MkdirAll(tasksDir, 0755)
+	_ = os.WriteFile(filepath.Join(tasksDir, "fetch.py"), []byte("import duckdb"), 0644)
+	_ = os.WriteFile(filepath.Join(tasksDir, "stage_silver.sql"), []byte("INSERT INTO silver.t SELECT 1;"), 0644)
+
 	files := collectLocalFiles(tempDir)
-	if len(files) != 5 {
-		t.Errorf("expected 5 files collected, got %d: %v", len(files), files)
+	if len(files) != 7 {
+		t.Errorf("expected 7 files collected, got %d: %v", len(files), files)
+	}
+	if files["tasks/fetch.py"] != "import duckdb" {
+		t.Errorf("expected tasks/fetch.py content, got '%s'", files["tasks/fetch.py"])
+	}
+	if files["tasks/stage_silver.sql"] != "INSERT INTO silver.t SELECT 1;" {
+		t.Errorf("expected tasks/stage_silver.sql content, got '%s'", files["tasks/stage_silver.sql"])
 	}
 	if files["sql/test.sql"] != "SELECT 1;" {
 		t.Errorf("expected sql/test.sql content 'SELECT 1;', got '%s'", files["sql/test.sql"])
