@@ -1635,7 +1635,7 @@ func collectLocalFiles(baseDir string) map[string]string {
 		baseDir = "."
 	}
 
-	subdirs := []string{"sql", "notebooks", "scripts", "python", "src"}
+	subdirs := []string{"tasks", "sql", "notebooks", "scripts", "python", "src"}
 	for _, subdir := range subdirs {
 		dirPath := filepath.Join(baseDir, subdir)
 		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
