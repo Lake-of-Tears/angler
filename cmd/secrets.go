@@ -298,7 +298,7 @@ var secretsPutCmd = &cobra.Command{
 
 var secretsGetCmd = &cobra.Command{
 	Use:   "get <scope> <key>",
-	Short: "Retrieve secret metadata or value (masked in table output unless --unmask or --raw is used)",
+	Short: "Retrieve secret metadata or value (masked by default unless --unmask or --raw is used)",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		scopeName := args[0]
@@ -317,7 +317,7 @@ var secretsGetCmd = &cobra.Command{
 
 		showPlain := secretGetUnmask || secretGetShowValue
 		outPayload := *sec
-		if !showPlain && ui.GetOutputFormat() == ui.FormatTable {
+		if !showPlain {
 			outPayload.Value = "••••••••"
 		}
 
@@ -477,8 +477,8 @@ func init() {
 
 	// get flags
 	secretsGetCmd.Flags().BoolVar(&secretGetRaw, "raw", false, "Print raw unmasked secret value directly to stdout for piping")
-	secretsGetCmd.Flags().BoolVar(&secretGetUnmask, "unmask", false, "Unmask the secret value in table output")
-	secretsGetCmd.Flags().BoolVar(&secretGetShowValue, "show-value", false, "Unmask the secret value in table output")
+	secretsGetCmd.Flags().BoolVar(&secretGetUnmask, "unmask", false, "Unmask the secret value in output")
+	secretsGetCmd.Flags().BoolVar(&secretGetShowValue, "show-value", false, "Unmask the secret value in output")
 
 	// delete key flags
 	secretsDeleteCmd.Flags().BoolVarP(&secretForce, "force", "f", false, "Delete key without confirmation")

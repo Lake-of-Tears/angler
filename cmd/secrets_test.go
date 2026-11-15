@@ -123,24 +123,42 @@ func TestSecretsCommands(t *testing.T) {
 		t.Fatalf("secrets put failed (%d): %s", code, errBuf.String())
 	}
 
-	// 3. get (masked by default in table mode)
-	outBuf.Reset()
-	secretGetRaw = false
-	secretGetUnmask = false
-	secretGetShowValue = false
-	rootCmd.SetArgs([]string{"--endpoint", srv.URL, "--output", "table", "secrets", "get", "prod-vault", "api_key"})
-	if code := ExecuteRoot(); code != ui.ExitOK {
-		t.Fatalf("secrets get failed (%d): %s", code, errBuf.String())
-	}
-	if strings.Contains(outBuf.String(), "top-secret-token-999") {
-		t.Fatalf("expected secret value to be masked by default in table output, got: %s", outBuf.String())
-	}
-	if !strings.Contains(outBuf.String(), "••••••••") {
-		t.Fatalf("expected mask indicator in table output, got: %s", outBuf.String())
+	// 3. get (masked by default across table, json, yaml, toon)
+	for _, fmtName := range []string{"table", "json", "yaml", "toon"} {
+		outBuf.Reset()
+		secretGetRaw = false
+		secretGetUnmask = false
+		secretGetShowValue = false
+		rootCmd.SetArgs([]string{"--endpoint", srv.URL, "--output", fmtName, "secrets", "get", "prod-vault", "api_key"})
+		if code := ExecuteRoot(); code != ui.ExitOK {
+			t.Fatalf("secrets get (%s) failed (%d): %s", fmtName, code, errBuf.String())
+		}
+		if strings.Contains(outBuf.String(), "top-secret-token-999") {
+			t.Fatalf("expected secret value to be masked by default in %s output, got: %s", fmtName, outBuf.String())
+		}
+		if !strings.Contains(outBuf.String(), "••••••••") {
+			t.Fatalf("expected mask indicator in %s output, got: %s", fmtName, outBuf.String())
+		}
+
+		// 3b. get with --unmask shows plaintext value
+		outBuf.Reset()
+		secretGetRaw = false
+		secretGetUnmask = false
+		secretGetShowValue = false
+		rootCmd.SetArgs([]string{"--endpoint", srv.URL, "--output", fmtName, "secrets", "get", "prod-vault", "api_key", "--unmask"})
+		if code := ExecuteRoot(); code != ui.ExitOK {
+			t.Fatalf("secrets get (%s --unmask) failed (%d): %s", fmtName, code, errBuf.String())
+		}
+		if !strings.Contains(outBuf.String(), "top-secret-token-999") {
+			t.Fatalf("expected plaintext secret in %s output with --unmask, got: %s", fmtName, outBuf.String())
+		}
 	}
 
 	// 4. get --raw (unmasked for piping)
 	outBuf.Reset()
+	secretGetRaw = false
+	secretGetUnmask = false
+	secretGetShowValue = false
 	rootCmd.SetArgs([]string{"--endpoint", srv.URL, "secrets", "get", "prod-vault", "api_key", "--raw"})
 	if code := ExecuteRoot(); code != ui.ExitOK {
 		t.Fatalf("secrets get --raw failed (%d): %s", code, errBuf.String())

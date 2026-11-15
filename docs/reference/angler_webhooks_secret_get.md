@@ -1,6 +1,6 @@
 ## angler webhooks secret get
 
-Retrieve the active workspace's webhook secret token and raw ingestion URL
+Retrieve the active workspace's webhook secret token (masked by default unless --unmask or --raw is used)
 
 ```
 angler webhooks secret get [flags]
@@ -9,8 +9,10 @@ angler webhooks secret get [flags]
 ### Options
 
 ```
-  -h, --help   help for get
-      --raw    Print raw webhook secret string to stdout
+  -h, --help         help for get
+      --raw          Print raw webhook secret string to stdout
+      --show-value   Unmask the webhook secret in output
+      --unmask       Unmask the webhook secret in output
 ```
 
 ### Options inherited from parent commands

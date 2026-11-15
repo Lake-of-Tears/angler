@@ -108,14 +108,48 @@ func TestWebhooksAndJobsWebhookCommands(t *testing.T) {
 		ui.ErrWriter = os.Stderr
 	})
 
-	// 1. webhooks secret get
-	outBuf.Reset()
-	rootCmd.SetArgs([]string{"--endpoint", srv.URL, "--output", "table", "webhooks", "secret", "get"})
-	if code := ExecuteRoot(); code != ui.ExitOK {
-		t.Fatalf("webhooks secret get failed (%d): %s", code, errBuf.String())
+	// 1. webhooks secret get (masked by default across table and json)
+	for _, fmtName := range []string{"table", "json"} {
+		outBuf.Reset()
+		webhooksSecretRaw = false
+		webhooksSecretUnmask = false
+		webhooksSecretShowValue = false
+		rootCmd.SetArgs([]string{"--endpoint", srv.URL, "--output", fmtName, "webhooks", "secret", "get"})
+		if code := ExecuteRoot(); code != ui.ExitOK {
+			t.Fatalf("webhooks secret get (%s) failed (%d): %s", fmtName, code, errBuf.String())
+		}
+		if strings.Contains(outBuf.String(), "whsec_test_12345") {
+			t.Fatalf("expected webhook secret to be masked by default in %s output, got: %s", fmtName, outBuf.String())
+		}
+		if !strings.Contains(outBuf.String(), "••••••••") {
+			t.Fatalf("expected mask indicator in %s output, got: %s", fmtName, outBuf.String())
+		}
+
+		// 1b. webhooks secret get --unmask shows plaintext secret
+		outBuf.Reset()
+		webhooksSecretRaw = false
+		webhooksSecretUnmask = false
+		webhooksSecretShowValue = false
+		rootCmd.SetArgs([]string{"--endpoint", srv.URL, "--output", fmtName, "webhooks", "secret", "get", "--unmask"})
+		if code := ExecuteRoot(); code != ui.ExitOK {
+			t.Fatalf("webhooks secret get (%s --unmask) failed (%d): %s", fmtName, code, errBuf.String())
+		}
+		if !strings.Contains(outBuf.String(), "whsec_test_12345") {
+			t.Fatalf("expected plaintext webhook secret in %s output with --unmask, got: %s", fmtName, outBuf.String())
+		}
 	}
-	if !strings.Contains(outBuf.String(), "whsec_test_12345") {
-		t.Fatalf("expected webhook secret in output, got: %s", outBuf.String())
+
+	// 1c. webhooks secret get --raw (unmasked for scripts)
+	outBuf.Reset()
+	webhooksSecretRaw = false
+	webhooksSecretUnmask = false
+	webhooksSecretShowValue = false
+	rootCmd.SetArgs([]string{"--endpoint", srv.URL, "webhooks", "secret", "get", "--raw"})
+	if code := ExecuteRoot(); code != ui.ExitOK {
+		t.Fatalf("webhooks secret get --raw failed (%d): %s", code, errBuf.String())
+	}
+	if strings.TrimSpace(outBuf.String()) != "whsec_test_12345" {
+		t.Fatalf("expected raw webhook secret 'whsec_test_12345', got %q", outBuf.String())
 	}
 
 	// 2. webhooks send with --hmac and --trigger-pipeline
