@@ -32,6 +32,6 @@ angler webhooks secret [flags]
 ### SEE ALSO
 
 * [angler webhooks](angler_webhooks.md)	 - Workspace Webhook Ingestion, HMAC Signing, Secret Rotation & Downstream Pipeline Triggering
-* [angler webhooks secret get](angler_webhooks_secret_get.md)	 - Retrieve the active workspace's webhook secret token and raw ingestion URL
+* [angler webhooks secret get](angler_webhooks_secret_get.md)	 - Retrieve the active workspace's webhook secret token (masked by default unless --unmask or --raw is used)
 * [angler webhooks secret rotate](angler_webhooks_secret_rotate.md)	 - Regenerate the workspace's webhook secret token
 

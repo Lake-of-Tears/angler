@@ -1,6 +1,6 @@
 ## angler secrets get
 
-Retrieve secret metadata or value (masked in table output unless --unmask or --raw is used)
+Retrieve secret metadata or value (masked by default unless --unmask or --raw is used)
 
 ```
 angler secrets get <scope> <key> [flags]
@@ -11,8 +11,8 @@ angler secrets get <scope> <key> [flags]
 ```
   -h, --help         help for get
       --raw          Print raw unmasked secret value directly to stdout for piping
-      --show-value   Unmask the secret value in table output
-      --unmask       Unmask the secret value in table output
+      --show-value   Unmask the secret value in output
+      --unmask       Unmask the secret value in output
 ```
 
 ### Options inherited from parent commands

@@ -11,6 +11,8 @@ import (
 
 var (
 	webhooksSecretRaw       bool
+	webhooksSecretUnmask    bool
+	webhooksSecretShowValue bool
 	webhooksForce           bool
 	webhooksPayload         string
 	webhooksPayloadFile     string
@@ -44,7 +46,7 @@ var webhooksSecretCmd = &cobra.Command{
 
 var webhooksSecretGetCmd = &cobra.Command{
 	Use:   "get",
-	Short: "Retrieve the active workspace's webhook secret token and raw ingestion URL",
+	Short: "Retrieve the active workspace's webhook secret token (masked by default unless --unmask or --raw is used)",
 	RunE:  runWebhooksSecretGet,
 }
 
@@ -60,12 +62,22 @@ func runWebhooksSecretGet(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	showPlain := webhooksSecretUnmask || webhooksSecretShowValue
+	outPayload := *res
+	if !showPlain {
+		outPayload.WebhookSecret = "••••••••"
+	}
+
 	fullURL := strings.TrimRight(c.Endpoint, "/") + res.WebhookURL
-	return ui.RenderOutput(res, func() {
+	return ui.RenderOutput(outPayload, func() {
+		displayVal := "•••••••• (pass --unmask or --raw to view secret)"
+		if showPlain {
+			displayVal = res.WebhookSecret
+		}
 		ui.PrintSuccess("Workspace Webhook Configuration (%s)", res.WorkspaceSlug)
 		fmt.Fprintf(ui.OutWriter, "  Workspace ID:   %s\n", res.WorkspaceID)
 		fmt.Fprintf(ui.OutWriter, "  Workspace Slug: %s\n", res.WorkspaceSlug)
-		fmt.Fprintf(ui.OutWriter, "  Webhook Secret: %s\n", res.WebhookSecret)
+		fmt.Fprintf(ui.OutWriter, "  Webhook Secret: %s\n", displayVal)
 		fmt.Fprintf(ui.OutWriter, "  Ingestion URL:  %s\n", fullURL)
 	})
 }
@@ -143,6 +155,8 @@ var webhooksSendCmd = &cobra.Command{
 
 func init() {
 	webhooksSecretGetCmd.Flags().BoolVar(&webhooksSecretRaw, "raw", false, "Print raw webhook secret string to stdout")
+	webhooksSecretGetCmd.Flags().BoolVar(&webhooksSecretUnmask, "unmask", false, "Unmask the webhook secret in output")
+	webhooksSecretGetCmd.Flags().BoolVar(&webhooksSecretShowValue, "show-value", false, "Unmask the webhook secret in output")
 	webhooksSecretRotateCmd.Flags().BoolVarP(&webhooksForce, "force", "f", false, "Rotate secret without confirmation prompt")
 
 	webhooksSendCmd.Flags().StringVarP(&webhooksPayload, "payload", "d", "", "JSON event payload string")

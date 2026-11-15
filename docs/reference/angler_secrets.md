@@ -53,7 +53,7 @@ angler secrets [flags]
 * [angler](angler.md)	 - The official CLI for Lake of Tears data lakehouse
 * [angler secrets acls](angler_secrets_acls.md)	 - List, grant, and revoke access control rules on a secret scope
 * [angler secrets delete](angler_secrets_delete.md)	 - Delete a secret key from a scope
-* [angler secrets get](angler_secrets_get.md)	 - Retrieve secret metadata or value (masked in table output unless --unmask or --raw is used)
+* [angler secrets get](angler_secrets_get.md)	 - Retrieve secret metadata or value (masked by default unless --unmask or --raw is used)
 * [angler secrets keys](angler_secrets_keys.md)	 - Manage secret keys within a scope
 * [angler secrets list](angler_secrets_list.md)	 - List secret key names, versions, and timestamps in a scope (without exposing values)
 * [angler secrets list-scopes](angler_secrets_list-scopes.md)	 - List all secret scopes in the active workspace (Databricks-compatible alias)
