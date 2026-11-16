@@ -245,3 +245,83 @@ func TestCatalogTrashTOONUpdateAndAccessClient(t *testing.T) {
 		t.Fatalf("RevokeCatalogAccess failed: %v", err)
 	}
 }
+
+func TestCatalogMigrationClientEndpoints(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/catalogs/cat-001/schemas/sch-001/tables/tbl-001/migrate-to-iceberg" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ok":          true,
+				"status":      "migrated",
+				"table":       "users",
+				"table_id":    "tbl-001",
+				"format":      "iceberg",
+				"snapshot_id": 123456789,
+				"files":       4,
+				"rows":        1000,
+			})
+		case r.URL.Path == "/api/catalogs/cat-001/schemas/sch-001/tables/tbl-001/migrate-to-parquet" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ok":              true,
+				"status":          "rolled_back",
+				"table":           "users",
+				"table_id":        "tbl-001",
+				"format":          "parquet",
+				"type":            "zero_copy",
+				"s3_path_pattern": "s3://lake/users/*.parquet",
+			})
+		case r.URL.Path == "/api/catalogs/cat-001/migrate-to-iceberg" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ok":      true,
+				"catalog": "main",
+				"summary": map[string]interface{}{
+					"planned":  0,
+					"migrated": 5,
+					"skipped":  0,
+					"failed":   0,
+				},
+			})
+		case r.URL.Path == "/api/catalogs/cat-001/migrate-to-parquet" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ok":      true,
+				"catalog": "main",
+				"summary": map[string]interface{}{
+					"planned":     0,
+					"rolled_back": 5,
+					"skipped":     0,
+					"failed":      0,
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+
+	c := NewClient(config.Context{Endpoint: ts.URL, Token: "test-token"})
+
+	// Table migrate to iceberg
+	migRes, err := c.MigrateTableToIceberg("cat-001", "sch-001", "tbl-001", MigrateTableRequest{DryRun: false, Verify: true})
+	if err != nil || migRes["status"] != "migrated" || migRes["format"] != "iceberg" {
+		t.Fatalf("MigrateTableToIceberg failed: %v, got %v", err, migRes)
+	}
+
+	// Table rollback to parquet
+	rbRes, err := c.RollbackTableToParquet("cat-001", "sch-001", "tbl-001", RollbackTableRequest{DryRun: false, Materialize: false})
+	if err != nil || rbRes["status"] != "rolled_back" || rbRes["type"] != "zero_copy" {
+		t.Fatalf("RollbackTableToParquet failed: %v, got %v", err, rbRes)
+	}
+
+	// Catalog migrate to iceberg
+	catMig, err := c.MigrateCatalogToIceberg("cat-001", MigrateTableRequest{DryRun: false, Verify: true})
+	if err != nil || catMig["ok"] != true {
+		t.Fatalf("MigrateCatalogToIceberg failed: %v, got %v", err, catMig)
+	}
+
+	// Catalog rollback to parquet
+	catRb, err := c.RollbackCatalogToParquet("cat-001", RollbackTableRequest{DryRun: false, Materialize: false})
+	if err != nil || catRb["ok"] != true {
+		t.Fatalf("RollbackCatalogToParquet failed: %v, got %v", err, catRb)
+	}
+}

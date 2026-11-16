@@ -37,8 +37,10 @@ angler bundle validate [flags]
   -o, --output string         output format: table, json, yaml, toon
   -T, --target string         Target environment (e.g. dev, staging, prod)
   -t, --token string          API authentication token
+      --toon                  output results in TOON format
   -w, --workspace string      Lake of Tears workspace slug or name
       --workspace-id string   explicit Lake of Tears workspace ID
+      --yaml                  output results in YAML format
   -y, --yes                   automatic yes to prompts; run non-interactively
 ```
 

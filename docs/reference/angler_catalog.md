@@ -19,6 +19,10 @@ Examples:
   angler catalog schemas list main
   angler catalog tables list main default
   angler catalog tables get main default users
+  angler catalog tables migrate main default users --dry-run
+  angler catalog tables rollback main default users -y
+  angler catalog migrate main --to-iceberg -y
+  angler catalog rollback main -y
   angler catalog toon main default users
   angler catalog trash list
   angler catalog undrop <asset_id>
@@ -49,8 +53,10 @@ angler catalog [flags]
       --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
   -t, --token string          API authentication token
+      --toon                  output results in TOON format
   -w, --workspace string      Lake of Tears workspace slug or name
       --workspace-id string   explicit Lake of Tears workspace ID
+      --yaml                  output results in YAML format
   -y, --yes                   automatic yes to prompts; run non-interactively
 ```
 
@@ -65,6 +71,8 @@ angler catalog [flags]
 * [angler catalog get](angler_catalog_get.md)	 - Inspect catalog metadata, schemas, and workspace ownership
 * [angler catalog ls](angler_catalog_ls.md)	 - List all registered catalogs in the active workspace
 * [angler catalog manifest](angler_catalog_manifest.md)	 - Export catalog manifest projection JSON
+* [angler catalog migrate](angler_catalog_migrate.md)	 - Batch migrate an entire catalog's tables between Parquet and Iceberg
+* [angler catalog rollback](angler_catalog_rollback.md)	 - Batch roll back an entire catalog's Iceberg tables to Parquet
 * [angler catalog schemas](angler_catalog_schemas.md)	 - Manage and inspect catalog database schemas
 * [angler catalog tables](angler_catalog_tables.md)	 - Manage and inspect catalog tables
 * [angler catalog toon](angler_catalog_toon.md)	 - Export token-efficient TOON (Token-Oriented Object Notation) schema or table projection

@@ -70,6 +70,20 @@ type CreateTableRequest struct {
 	ColumnDefs    []map[string]interface{} `json:"column_defs,omitempty"`
 }
 
+// MigrateTableRequest represents options when migrating a table or catalog to Iceberg.
+type MigrateTableRequest struct {
+	Table  string `json:"table,omitempty"`
+	DryRun bool   `json:"dry_run"`
+	Verify bool   `json:"verify"`
+}
+
+// RollbackTableRequest represents options when rolling back or converting a table or catalog to Parquet.
+type RollbackTableRequest struct {
+	Table       string `json:"table,omitempty"`
+	DryRun      bool   `json:"dry_run"`
+	Materialize bool   `json:"materialize"`
+}
+
 // AnomalyDetectRequest represents options for triggering anomaly detection.
 type AnomalyDetectRequest struct {
 	Source        string  `json:"source,omitempty"`
@@ -1021,4 +1035,130 @@ func (c *Client) RevokeCatalogAccess(catalogID, accessID string) error {
 	}
 
 	return nil
+}
+
+// ── In-Place Zero-Copy & Materialized Migration Suite ─────────────────────────
+
+// MigrateTableToIceberg converts a Parquet table in-place zero-copy to Apache Iceberg format.
+func (c *Client) MigrateTableToIceberg(catalogID, schemaID, tableID string, req MigrateTableRequest) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/api/catalogs/%s/schemas/%s/tables/%s/migrate-to-iceberg",
+		url.PathEscape(catalogID),
+		url.PathEscape(schemaID),
+		url.PathEscape(tableID),
+	)
+	httpReq, err := c.newRequest(http.MethodPost, path, req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to migrate table to Iceberg: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("migrate table to Iceberg failed (HTTP %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]interface{}
+	if len(bodyBytes) > 0 {
+		_ = json.Unmarshal(bodyBytes, &res)
+	}
+	if res == nil {
+		res = map[string]interface{}{"ok": true, "status": "migrated"}
+	}
+	return res, nil
+}
+
+// RollbackTableToParquet undos a migration (zero-copy) or converts an Iceberg table to Parquet (materialized).
+func (c *Client) RollbackTableToParquet(catalogID, schemaID, tableID string, req RollbackTableRequest) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/api/catalogs/%s/schemas/%s/tables/%s/migrate-to-parquet",
+		url.PathEscape(catalogID),
+		url.PathEscape(schemaID),
+		url.PathEscape(tableID),
+	)
+	httpReq, err := c.newRequest(http.MethodPost, path, req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to rollback table to Parquet: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("rollback table to Parquet failed (HTTP %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]interface{}
+	if len(bodyBytes) > 0 {
+		_ = json.Unmarshal(bodyBytes, &res)
+	}
+	if res == nil {
+		res = map[string]interface{}{"ok": true, "status": "rolled_back"}
+	}
+	return res, nil
+}
+
+// MigrateCatalogToIceberg migrates an entire catalog's Parquet tables to Iceberg format.
+func (c *Client) MigrateCatalogToIceberg(catalogID string, req MigrateTableRequest) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/api/catalogs/%s/migrate-to-iceberg", url.PathEscape(catalogID))
+	httpReq, err := c.newRequest(http.MethodPost, path, req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to migrate catalog to Iceberg: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("migrate catalog to Iceberg failed (HTTP %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]interface{}
+	if len(bodyBytes) > 0 {
+		_ = json.Unmarshal(bodyBytes, &res)
+	}
+	if res == nil {
+		res = map[string]interface{}{"ok": true}
+	}
+	return res, nil
+}
+
+// RollbackCatalogToParquet rolls back or converts an entire catalog's Iceberg tables to Parquet format.
+func (c *Client) RollbackCatalogToParquet(catalogID string, req RollbackTableRequest) (map[string]interface{}, error) {
+	path := fmt.Sprintf("/api/catalogs/%s/migrate-to-parquet", url.PathEscape(catalogID))
+	httpReq, err := c.newRequest(http.MethodPost, path, req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to rollback catalog to Parquet: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("rollback catalog to Parquet failed (HTTP %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]interface{}
+	if len(bodyBytes) > 0 {
+		_ = json.Unmarshal(bodyBytes, &res)
+	}
+	if res == nil {
+		res = map[string]interface{}{"ok": true}
+	}
+	return res, nil
 }

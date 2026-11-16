@@ -24,8 +24,10 @@ List, inspect, and drop tables within a catalog schema.
       --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
   -t, --token string          API authentication token
+      --toon                  output results in TOON format
   -w, --workspace string      Lake of Tears workspace slug or name
       --workspace-id string   explicit Lake of Tears workspace ID
+      --yaml                  output results in YAML format
   -y, --yes                   automatic yes to prompts; run non-interactively
 ```
 
@@ -35,5 +37,7 @@ List, inspect, and drop tables within a catalog schema.
 * [angler catalog tables delete](angler_catalog_tables_delete.md)	 - Drop a table from a catalog schema
 * [angler catalog tables get](angler_catalog_tables_get.md)	 - Inspect table schema, column types, and storage pattern
 * [angler catalog tables list](angler_catalog_tables_list.md)	 - List all tables in a catalog schema
+* [angler catalog tables migrate](angler_catalog_tables_migrate.md)	 - Migrate a table in-place zero-copy to Apache Iceberg (or Parquet via --to-parquet)
+* [angler catalog tables rollback](angler_catalog_tables_rollback.md)	 - Roll back an Apache Iceberg table to Parquet (zero-copy or materialized)
 * [angler catalog tables update](angler_catalog_tables_update.md)	 - Update table description or S3 path pattern
 
