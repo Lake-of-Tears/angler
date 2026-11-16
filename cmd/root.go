@@ -20,6 +20,8 @@ var (
 	workspaceIDFlag   string
 	onBehalfOfFlag    string
 	jsonOutput        bool
+	yamlOutput        bool
+	toonOutput        bool
 	outputFlag        string
 	nonInteractive    bool
 	assumeYes         bool
@@ -60,6 +62,10 @@ func configureRuntimeMode(cmd *cobra.Command) error {
 
 	if jsonOutput {
 		resolved = ui.FormatJSON
+	} else if yamlOutput {
+		resolved = ui.FormatYAML
+	} else if toonOutput {
+		resolved = ui.FormatTOON
 	} else if outputFlag != "" {
 		resolved = strings.ToLower(strings.TrimSpace(outputFlag))
 	} else if allowTabular && cmd.Flags().Lookup("format") != nil && cmd.Flags().Changed("format") {
@@ -115,6 +121,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&workspaceIDFlag, "workspace-id", "", "explicit Lake of Tears workspace ID")
 	rootCmd.PersistentFlags().StringVar(&onBehalfOfFlag, "on-behalf-of", "", "impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)")
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "output results in JSON format")
+	rootCmd.PersistentFlags().BoolVar(&yamlOutput, "yaml", false, "output results in YAML format")
+	rootCmd.PersistentFlags().BoolVar(&toonOutput, "toon", false, "output results in TOON format")
 	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "", "output format: table, json, yaml, toon")
 	rootCmd.PersistentFlags().BoolVar(&nonInteractive, "non-interactive", false, "disable interactive prompts")
 	rootCmd.PersistentFlags().BoolVarP(&assumeYes, "yes", "y", false, "automatic yes to prompts; run non-interactively")

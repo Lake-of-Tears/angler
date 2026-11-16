@@ -30,8 +30,17 @@ func resetCatalogTestFlags() {
 	catAccessMode = "read"
 	catAccessMessage = "Requested via Angler CLI"
 	catToonRaw = false
+	catDryRun = false
+	catSkipVerify = false
+	catToParquet = false
+	catToIceberg = false
+	catMaterialize = false
 	jsonOutput = false
+	yamlOutput = false
+	toonOutput = false
 	outputFlag = ""
+	assumeYes = false
+	forceExec = false
 }
 
 func executeCatalogCommand(t *testing.T, endpointURL string, args ...string) (string, string, int) {
@@ -77,6 +86,7 @@ func TestCatalogCommandsRegistered(t *testing.T) {
 
 			expected := []string{
 				"ls", "get", "create", "update", "delete",
+				"migrate", "rollback",
 				"schemas", "tables", "toon", "trash", "undrop",
 				"directory", "access", "manifest", "anomalies",
 			}
@@ -104,7 +114,7 @@ func TestCatalogCommandsRegistered(t *testing.T) {
 					for _, tc := range sub.Commands() {
 						tblMap[tc.Name()] = true
 					}
-					for _, exp := range []string{"list", "get", "update", "delete"} {
+					for _, exp := range []string{"list", "get", "update", "delete", "migrate", "rollback"} {
 						if !tblMap[exp] {
 							t.Errorf("expected table subcommand %q", exp)
 						}
@@ -729,5 +739,234 @@ func TestCatalogDirectoryAndAccess(t *testing.T) {
 	}
 	if !strings.Contains(stdout+stderr, "revoked") {
 		t.Errorf("expected revoked confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+}
+
+func TestCatalogMigrationCommands(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/catalogs/cat-001/schemas/sch-001/tables/tbl-001/migrate-to-iceberg" && r.Method == http.MethodPost:
+			var req client.MigrateTableRequest
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			if req.DryRun {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"ok":             true,
+					"status":         "planned",
+					"table":          "users",
+					"files":          4,
+					"rows":           1000,
+					"bytes":          50000,
+					"partitioned_by": []string{"region"},
+				})
+			} else {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"ok":          true,
+					"status":      "migrated",
+					"table":       "users",
+					"table_id":    "tbl-001",
+					"format":      "iceberg",
+					"snapshot_id": 987654321,
+				})
+			}
+		case r.URL.Path == "/api/catalogs/cat-001/schemas/sch-001/tables/tbl-001/migrate-to-parquet" && r.Method == http.MethodPost:
+			var req client.RollbackTableRequest
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			if req.DryRun {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"ok":              true,
+					"status":          "planned",
+					"table":           "users",
+					"type":            "zero_copy",
+					"target_format":   "parquet",
+					"s3_path_pattern": "s3://lake/users/*.parquet",
+				})
+			} else if req.Materialize {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"ok":              true,
+					"status":          "converted",
+					"table":           "users",
+					"table_id":        "tbl-001",
+					"format":          "parquet",
+					"type":            "materialized",
+					"s3_path_pattern": "s3://lake/users/parquet_export/*.parquet",
+					"rows":            1000,
+					"bytes":           50000,
+				})
+			} else {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"ok":              true,
+					"status":          "rolled_back",
+					"table":           "users",
+					"table_id":        "tbl-001",
+					"format":          "parquet",
+					"type":            "zero_copy",
+					"s3_path_pattern": "s3://lake/users/*.parquet",
+				})
+			}
+		case r.URL.Path == "/api/catalogs/cat-001/migrate-to-iceberg" && r.Method == http.MethodPost:
+			var req client.MigrateTableRequest
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			statusKey := "migrated"
+			if req.DryRun {
+				statusKey = "planned"
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ok":      true,
+				"catalog": "main",
+				"summary": map[string]interface{}{
+					statusKey: 3,
+					"skipped": 0,
+					"failed":  0,
+				},
+			})
+		case r.URL.Path == "/api/catalogs/cat-001/migrate-to-parquet" && r.Method == http.MethodPost:
+			var req client.RollbackTableRequest
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			statusKey := "rolled_back"
+			if req.DryRun {
+				statusKey = "planned"
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"ok":      true,
+				"catalog": "main",
+				"summary": map[string]interface{}{
+					statusKey: 3,
+					"skipped": 0,
+					"failed":  0,
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+
+	cfg = &config.Config{
+		CurrentContext: "test",
+		Contexts: map[string]config.Context{
+			"test": {Endpoint: ts.URL, Token: "test-token", Workspace: "default"},
+		},
+	}
+
+	// 1. Table migrate dry-run (table mode)
+	stdout, stderr, code := executeCatalogCommand(t, ts.URL, "catalog", "tables", "migrate", "cat-001", "sch-001", "tbl-001", "--dry-run", "-o", "table")
+	if code != ui.ExitOK {
+		t.Fatalf("table migrate dry-run failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "users") || !strings.Contains(stdout, "planned") {
+		t.Errorf("expected planned in table migrate dry-run, got:\n%s", stdout)
+	}
+
+	// 2. Table migrate execute (-y, table mode)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "tables", "migrate", "cat-001", "sch-001", "tbl-001", "-y", "-o", "table")
+	if code != ui.ExitOK {
+		t.Fatalf("table migrate failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "migrated") || !strings.Contains(stdout+stderr, "987654321") {
+		t.Errorf("expected migration success confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 3. Table migrate JSON output (--json)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "tables", "migrate", "cat-001", "sch-001", "tbl-001", "-y", "--json")
+	if code != ui.ExitOK {
+		t.Fatalf("table migrate json failed: code %d, stderr: %s", code, stderr)
+	}
+	var jsonRes map[string]interface{}
+	if err := json.Unmarshal([]byte(stdout), &jsonRes); err != nil {
+		t.Fatalf("invalid json output: %v\nstdout: %s", err, stdout)
+	}
+	if jsonRes["status"] != "migrated" || jsonRes["format"] != "iceberg" {
+		t.Errorf("expected migrated iceberg in json, got: %v", jsonRes)
+	}
+
+	// 4. Table migrate YAML output (--yaml)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "tables", "migrate", "cat-001", "sch-001", "tbl-001", "-y", "--yaml")
+	if code != ui.ExitOK {
+		t.Fatalf("table migrate yaml failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "format: iceberg") || !strings.Contains(stdout, "status: migrated") {
+		t.Errorf("expected yaml output with format: iceberg, got:\n%s", stdout)
+	}
+
+	// 5. Table migrate TOON output (--toon)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "tables", "migrate", "cat-001", "sch-001", "tbl-001", "-y", "--toon")
+	if code != ui.ExitOK {
+		t.Fatalf("table migrate toon failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "format: iceberg") && !strings.Contains(stdout, "status: migrated") {
+		t.Errorf("expected toon output with format/status, got:\n%s", stdout)
+	}
+
+	// 6. Table rollback dry-run (table mode)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "tables", "rollback", "cat-001", "sch-001", "tbl-001", "--dry-run", "-o", "table")
+	if code != ui.ExitOK {
+		t.Fatalf("table rollback dry-run failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "planned") || !strings.Contains(stdout, "zero_copy") {
+		t.Errorf("expected zero_copy planned in rollback dry-run, got:\n%s", stdout)
+	}
+
+	// 7. Table rollback zero-copy execute (-y, table mode)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "tables", "rollback", "cat-001", "sch-001", "tbl-001", "-y", "-o", "table")
+	if code != ui.ExitOK {
+		t.Fatalf("table rollback failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "rolled back") {
+		t.Errorf("expected rolled back confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 8. Table rollback materialized execute (-y --materialize, table mode)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "tables", "rollback", "cat-001", "sch-001", "tbl-001", "-y", "--materialize", "-o", "table")
+	if code != ui.ExitOK {
+		t.Fatalf("table rollback materialize failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "converted to Parquet via materialized export") {
+		t.Errorf("expected materialized export confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 9. Table migrate cross-command with --to-parquet (table mode)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "tables", "migrate", "cat-001", "sch-001", "tbl-001", "--to-parquet", "-y", "-o", "table")
+	if code != ui.ExitOK {
+		t.Fatalf("table migrate --to-parquet failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "rolled back") {
+		t.Errorf("expected rolled back confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 10. Catalog-wide migrate dry-run (table mode)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "migrate", "cat-001", "--dry-run", "-o", "table")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog migrate dry-run failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "PLANNED") {
+		t.Errorf("expected PLANNED in catalog migrate dry-run, got:\n%s", stdout)
+	}
+
+	// 11. Catalog-wide migrate execute (-y, table mode)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "migrate", "cat-001", "-y", "-o", "table")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog migrate failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "Migration to Iceberg completed") {
+		t.Errorf("expected migration completed confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 12. Catalog-wide rollback execute (-y, table mode)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "rollback", "cat-001", "-y", "-o", "table")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog rollback failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "Rollback to Parquet completed") {
+		t.Errorf("expected rollback completed confirmation, got stdout: %s, stderr: %s", stdout, stderr)
+	}
+
+	// 13. Catalog-wide migrate cross-command with --to-parquet (-y, table mode)
+	stdout, stderr, code = executeCatalogCommand(t, ts.URL, "catalog", "migrate", "cat-001", "--to-parquet", "-y", "-o", "table")
+	if code != ui.ExitOK {
+		t.Fatalf("catalog migrate --to-parquet failed: code %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(stdout+stderr, "Rollback to Parquet completed") {
+		t.Errorf("expected rollback completed confirmation, got stdout: %s, stderr: %s", stdout, stderr)
 	}
 }

@@ -25,6 +25,11 @@ var (
 	catAccessMode     string
 	catAccessMessage  string
 	catToonRaw        bool
+	catDryRun         bool
+	catSkipVerify     bool
+	catToParquet      bool
+	catToIceberg      bool
+	catMaterialize    bool
 )
 
 var catalogCmd = &cobra.Command{
@@ -46,6 +51,10 @@ Examples:
   angler catalog schemas list main
   angler catalog tables list main default
   angler catalog tables get main default users
+  angler catalog tables migrate main default users --dry-run
+  angler catalog tables rollback main default users -y
+  angler catalog migrate main --to-iceberg -y
+  angler catalog rollback main -y
   angler catalog toon main default users
   angler catalog trash list
   angler catalog undrop <asset_id>
@@ -154,6 +163,127 @@ var catalogDeleteCmd = &cobra.Command{
 		ui.PrintSuccess("Catalog '%s' deleted.", catalogID)
 		return nil
 	},
+}
+
+// ── Catalog-Wide Batch Migration Commands ────────────────────────────────────
+
+var catalogMigrateCmd = &cobra.Command{
+	Use:   "migrate <catalog_id>",
+	Short: "Batch migrate an entire catalog's tables between Parquet and Iceberg",
+	Long: `Batch migrates all Parquet tables in a catalog in-place zero-copy to Apache Iceberg.
+Alternatively specify --to-parquet to roll back or convert all Iceberg tables to Parquet.
+
+Examples:
+  # Dry-run inspection of catalog-wide migration
+  angler catalog migrate main --dry-run
+
+  # Batch migrate all tables in catalog to Iceberg
+  angler catalog migrate main -y
+
+  # Batch rollback catalog to Parquet
+  angler catalog migrate main --to-parquet -y`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		c := getClient()
+
+		if catToParquet {
+			if !catDryRun && !catForce && !assumeYes && !nonInteractive && !ui.IsNonInteractive() && ui.GetOutputFormat() == ui.FormatTable {
+				prompt := fmt.Sprintf("Roll back all Iceberg tables in catalog '%s' to Parquet?", catalogID)
+				if !confirmAction(prompt) {
+					ui.PrintWarning("Catalog rollback aborted.")
+					return nil
+				}
+			}
+
+			res, err := c.RollbackCatalogToParquet(catalogID, client.RollbackTableRequest{
+				DryRun:      catDryRun,
+				Materialize: catMaterialize,
+			})
+			if err != nil {
+				return err
+			}
+
+			return ui.RenderOutput(res, func() {
+				renderCatalogBatchResult(catalogID, "Rollback to Parquet", res)
+			})
+		}
+
+		// Parquet -> Iceberg
+		if !catDryRun && !catForce && !assumeYes && !nonInteractive && !ui.IsNonInteractive() && ui.GetOutputFormat() == ui.FormatTable {
+			if !confirmAction(fmt.Sprintf("Migrate all Parquet tables in catalog '%s' zero-copy to Apache Iceberg?", catalogID)) {
+				ui.PrintWarning("Catalog migration aborted.")
+				return nil
+			}
+		}
+
+		res, err := c.MigrateCatalogToIceberg(catalogID, client.MigrateTableRequest{
+			DryRun: catDryRun,
+			Verify: !catSkipVerify,
+		})
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			renderCatalogBatchResult(catalogID, "Migration to Iceberg", res)
+		})
+	},
+}
+
+var catalogRollbackCmd = &cobra.Command{
+	Use:   "rollback <catalog_id>",
+	Short: "Batch roll back an entire catalog's Iceberg tables to Parquet",
+	Long: `Batch rolls back all Apache Iceberg tables in a catalog to Parquet format.
+Tables untouched since migration are reverted zero-copy; mutated tables can be converted with --materialize.
+
+Examples:
+  # Dry run
+  angler catalog rollback main --dry-run
+
+  # Batch rollback
+  angler catalog rollback main -y`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		c := getClient()
+
+		if !catDryRun && !catForce && !assumeYes && !nonInteractive && !ui.IsNonInteractive() && ui.GetOutputFormat() == ui.FormatTable {
+			if !confirmAction(fmt.Sprintf("Roll back all Iceberg tables in catalog '%s' to Parquet?", catalogID)) {
+				ui.PrintWarning("Catalog rollback aborted.")
+				return nil
+			}
+		}
+
+		res, err := c.RollbackCatalogToParquet(catalogID, client.RollbackTableRequest{
+			DryRun:      catDryRun,
+			Materialize: catMaterialize,
+		})
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			renderCatalogBatchResult(catalogID, "Rollback to Parquet", res)
+		})
+	},
+}
+
+func renderCatalogBatchResult(catalogID, action string, res map[string]interface{}) {
+	summary, _ := res["summary"].(map[string]interface{})
+	if summary != nil {
+		headers := []string{"STATUS", "COUNT"}
+		rows := [][]string{}
+		for _, k := range []string{"planned", "migrated", "rolled_back", "skipped", "failed"} {
+			if count, ok := summary[k]; ok {
+				rows = append(rows, []string{strings.ToUpper(k), fmt.Sprintf("%v", count)})
+			}
+		}
+		if len(rows) > 0 {
+			fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+		}
+	}
+	ui.PrintSuccess("Catalog '%s' %s completed.", catalogID, action)
 }
 
 // ── Schema Commands ──────────────────────────────────────────────────────────
@@ -401,6 +531,203 @@ var catalogTablesDeleteCmd = &cobra.Command{
 
 		ui.PrintSuccess("Table '%s' dropped.", tableID)
 		return nil
+	},
+}
+
+var catalogTablesMigrateCmd = &cobra.Command{
+	Use:   "migrate <catalog_id> <schema_id> <table_id>",
+	Short: "Migrate a table in-place zero-copy to Apache Iceberg (or Parquet via --to-parquet)",
+	Long: `Converts a Parquet table in-place zero-copy to Apache Iceberg format.
+Optionally roll back to Parquet format by specifying --to-parquet.
+
+Examples:
+  # Dry-run inspection of Parquet -> Iceberg migration
+  angler catalog tables migrate main default users --dry-run
+
+  # Execute migration in-place zero-copy
+  angler catalog tables migrate main default users -y
+
+  # Rollback untouched table zero-copy to Parquet
+  angler catalog tables migrate main default users --to-parquet -y
+
+  # Materialize modified Iceberg table snapshot to clean Parquet export
+  angler catalog tables migrate main default users --to-parquet --materialize -y`,
+	Args: cobra.ExactArgs(3),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		schemaID := args[1]
+		tableID := args[2]
+
+		c := getClient()
+
+		if catToParquet {
+			if !catDryRun && !catForce && !assumeYes && !nonInteractive && !ui.IsNonInteractive() && ui.GetOutputFormat() == ui.FormatTable {
+				prompt := fmt.Sprintf("Roll back table '%s.%s.%s' to Parquet format?", catalogID, schemaID, tableID)
+				if catMaterialize {
+					prompt = fmt.Sprintf("Materialize and export table '%s.%s.%s' to Parquet format?", catalogID, schemaID, tableID)
+				}
+				if !confirmAction(prompt) {
+					ui.PrintWarning("Table rollback aborted.")
+					return nil
+				}
+			}
+
+			res, err := c.RollbackTableToParquet(catalogID, schemaID, tableID, client.RollbackTableRequest{
+				DryRun:      catDryRun,
+				Materialize: catMaterialize,
+			})
+			if err != nil {
+				return err
+			}
+
+			return ui.RenderOutput(res, func() {
+				status, _ := res["status"].(string)
+				if status == "planned" {
+					ui.PrintInfo("Rollback Plan (Dry Run):")
+					headers := []string{"TABLE", "STATUS", "MODE", "TARGET FORMAT", "S3 PATTERN"}
+					tblName, _ := res["table"].(string)
+					mode, _ := res["type"].(string)
+					targetFmt, _ := res["target_format"].(string)
+					pattern, _ := res["s3_path_pattern"].(string)
+					rows := [][]string{{tblName, status, mode, targetFmt, pattern}}
+					fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+					return
+				}
+
+				mode, _ := res["type"].(string)
+				tblName, _ := res["table"].(string)
+				if tblName == "" {
+					tblName = tableID
+				}
+				if status == "converted" || mode == "materialized" {
+					ui.PrintSuccess("Table '%s' converted to Parquet via materialized export.", tblName)
+				} else {
+					ui.PrintSuccess("Table '%s' rolled back zero-copy to Parquet format.", tblName)
+				}
+			})
+		}
+
+		// Default: Parquet -> Iceberg
+		if !catDryRun && !catForce && !assumeYes && !nonInteractive && !ui.IsNonInteractive() && ui.GetOutputFormat() == ui.FormatTable {
+			if !confirmAction(fmt.Sprintf("Migrate table '%s.%s.%s' zero-copy to Apache Iceberg?", catalogID, schemaID, tableID)) {
+				ui.PrintWarning("Table migration aborted.")
+				return nil
+			}
+		}
+
+		res, err := c.MigrateTableToIceberg(catalogID, schemaID, tableID, client.MigrateTableRequest{
+			DryRun: catDryRun,
+			Verify: !catSkipVerify,
+		})
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			status, _ := res["status"].(string)
+			tblName, _ := res["table"].(string)
+			if tblName == "" {
+				tblName = tableID
+			}
+
+			if status == "planned" {
+				ui.PrintInfo("Migration Plan (Dry Run):")
+				headers := []string{"TABLE", "STATUS", "FILES", "ROWS", "BYTES", "PARTITIONS"}
+				files := fmt.Sprintf("%v", res["files"])
+				rowsCount := fmt.Sprintf("%v", res["rows"])
+				bytesCount := fmt.Sprintf("%v", res["bytes"])
+				parts := fmt.Sprintf("%v", res["partitioned_by"])
+				rows := [][]string{{tblName, status, files, rowsCount, bytesCount, parts}}
+				fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+				return
+			}
+
+			var snapID string
+			switch s := res["snapshot_id"].(type) {
+			case float64:
+				snapID = fmt.Sprintf("%.0f", s)
+			case int64:
+				snapID = fmt.Sprintf("%d", s)
+			case int:
+				snapID = fmt.Sprintf("%d", s)
+			case string:
+				snapID = s
+			default:
+				snapID = fmt.Sprintf("%v", res["snapshot_id"])
+			}
+			ui.PrintSuccess("Table '%s' migrated in-place zero-copy to Apache Iceberg (Snapshot: %s).", tblName, snapID)
+		})
+	},
+}
+
+var catalogTablesRollbackCmd = &cobra.Command{
+	Use:   "rollback <catalog_id> <schema_id> <table_id>",
+	Short: "Roll back an Apache Iceberg table to Parquet (zero-copy or materialized)",
+	Long: `Roll back an Apache Iceberg table to Parquet format.
+If the table is untouched since zero-copy migration, restores the original Parquet format zero-copy.
+If the table has new commits, use --materialize to export the current snapshot to clean Parquet files.
+
+Examples:
+  # Dry run inspection
+  angler catalog tables rollback main default users --dry-run
+
+  # Zero-copy rollback for untouched table
+  angler catalog tables rollback main default users -y
+
+  # Materialized conversion for mutated table
+  angler catalog tables rollback main default users --materialize -y`,
+	Args: cobra.ExactArgs(3),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		catalogID := args[0]
+		schemaID := args[1]
+		tableID := args[2]
+
+		c := getClient()
+
+		if !catDryRun && !catForce && !assumeYes && !nonInteractive && !ui.IsNonInteractive() && ui.GetOutputFormat() == ui.FormatTable {
+			prompt := fmt.Sprintf("Roll back table '%s.%s.%s' to Parquet format?", catalogID, schemaID, tableID)
+			if catMaterialize {
+				prompt = fmt.Sprintf("Materialize and export table '%s.%s.%s' to Parquet format?", catalogID, schemaID, tableID)
+			}
+			if !confirmAction(prompt) {
+				ui.PrintWarning("Table rollback aborted.")
+				return nil
+			}
+		}
+
+		res, err := c.RollbackTableToParquet(catalogID, schemaID, tableID, client.RollbackTableRequest{
+			DryRun:      catDryRun,
+			Materialize: catMaterialize,
+		})
+		if err != nil {
+			return err
+		}
+
+		return ui.RenderOutput(res, func() {
+			status, _ := res["status"].(string)
+			if status == "planned" {
+				ui.PrintInfo("Rollback Plan (Dry Run):")
+				headers := []string{"TABLE", "STATUS", "MODE", "TARGET FORMAT", "S3 PATTERN"}
+				tblName, _ := res["table"].(string)
+				mode, _ := res["type"].(string)
+				targetFmt, _ := res["target_format"].(string)
+				pattern, _ := res["s3_path_pattern"].(string)
+				rows := [][]string{{tblName, status, mode, targetFmt, pattern}}
+				fmt.Fprintln(ui.OutWriter, ui.RenderTable(headers, rows))
+				return
+			}
+
+			mode, _ := res["type"].(string)
+			tblName, _ := res["table"].(string)
+			if tblName == "" {
+				tblName = tableID
+			}
+			if status == "converted" || mode == "materialized" {
+				ui.PrintSuccess("Table '%s' converted to Parquet via materialized export.", tblName)
+			} else {
+				ui.PrintSuccess("Table '%s' rolled back zero-copy to Parquet format.", tblName)
+			}
+		})
 	},
 }
 
@@ -992,6 +1319,23 @@ func init() {
 	catalogTablesUpdateCmd.Flags().StringVar(&catS3Path, "s3-path", "", "Updated S3 path pattern")
 	catalogTablesDeleteCmd.Flags().BoolVarP(&catForce, "force", "f", false, "Force delete without confirmation")
 
+	// Table migration flags
+	for _, cmd := range []*cobra.Command{catalogTablesMigrateCmd, catalogTablesRollbackCmd} {
+		cmd.Flags().BoolVar(&catDryRun, "dry-run", false, "Report plan without applying changes")
+		cmd.Flags().BoolVar(&catMaterialize, "materialize", false, "Export modified Iceberg snapshot to Parquet via DuckDB")
+	}
+	catalogTablesMigrateCmd.Flags().BoolVar(&catSkipVerify, "skip-verify", false, "Skip post-migration row count and schema verification")
+	catalogTablesMigrateCmd.Flags().BoolVar(&catToParquet, "to-parquet", false, "Roll back or convert Iceberg table to Parquet")
+
+	// Catalog-wide batch migration flags
+	for _, cmd := range []*cobra.Command{catalogMigrateCmd, catalogRollbackCmd} {
+		cmd.Flags().BoolVar(&catDryRun, "dry-run", false, "Report plan without applying changes")
+		cmd.Flags().BoolVar(&catMaterialize, "materialize", false, "Export modified Iceberg snapshots to Parquet via DuckDB")
+	}
+	catalogMigrateCmd.Flags().BoolVar(&catSkipVerify, "skip-verify", false, "Skip post-migration row count and schema verification")
+	catalogMigrateCmd.Flags().BoolVar(&catToIceberg, "to-iceberg", false, "Batch migrate Parquet tables to Iceberg (default)")
+	catalogMigrateCmd.Flags().BoolVar(&catToParquet, "to-parquet", false, "Batch roll back Iceberg tables to Parquet")
+
 	// TOON flags
 	catalogToonCmd.Flags().BoolVar(&catToonRaw, "raw", false, "Print raw TOON text without JSON wrapper")
 
@@ -1027,6 +1371,8 @@ func init() {
 	catalogTablesCmd.AddCommand(catalogTablesGetCmd)
 	catalogTablesCmd.AddCommand(catalogTablesUpdateCmd)
 	catalogTablesCmd.AddCommand(catalogTablesDeleteCmd)
+	catalogTablesCmd.AddCommand(catalogTablesMigrateCmd)
+	catalogTablesCmd.AddCommand(catalogTablesRollbackCmd)
 
 	// Register subcommands under catalogTrashCmd
 	catalogTrashCmd.AddCommand(catalogTrashListCmd)
@@ -1050,6 +1396,8 @@ func init() {
 	catalogCmd.AddCommand(catalogCreateCmd)
 	catalogCmd.AddCommand(catalogUpdateCmd)
 	catalogCmd.AddCommand(catalogDeleteCmd)
+	catalogCmd.AddCommand(catalogMigrateCmd)
+	catalogCmd.AddCommand(catalogRollbackCmd)
 	catalogCmd.AddCommand(catalogSchemasCmd)
 	catalogCmd.AddCommand(catalogTablesCmd)
 	catalogCmd.AddCommand(catalogToonCmd)

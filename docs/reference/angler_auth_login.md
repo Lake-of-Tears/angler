@@ -45,8 +45,10 @@ angler auth login [flags]
       --non-interactive       disable interactive prompts
       --on-behalf-of string   impersonate target user email via trusted superadmin service token (X-On-Behalf-Of)
   -o, --output string         output format: table, json, yaml, toon
+      --toon                  output results in TOON format
   -w, --workspace string      Lake of Tears workspace slug or name
       --workspace-id string   explicit Lake of Tears workspace ID
+      --yaml                  output results in YAML format
   -y, --yes                   automatic yes to prompts; run non-interactively
 ```
 
