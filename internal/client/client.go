@@ -441,7 +441,18 @@ type BundleDestroyResponse struct {
 	Target          string              `json:"target,omitempty"`
 	Status          string              `json:"status"`
 	PurgedResources map[string][]string `json:"purged_resources,omitempty"`
+	SkippedShared   map[string][]string `json:"skipped_shared,omitempty"`
+	DryRun          bool                `json:"dry_run,omitempty"`
 	Message         string              `json:"message"`
+}
+
+// BundleDestroyOptions controls how a bundle record is destroyed.
+type BundleDestroyOptions struct {
+	PurgeStorage bool
+	// DryRun lists what would be purged or kept without changing anything.
+	DryRun bool
+	// RecordOnly removes only the bundle record and keeps every provisioned resource.
+	RecordOnly bool
 }
 
 func (c *Client) ValidateBundle(req *BundleValidateRequest) (*BundleValidationResponse, error) {
@@ -531,6 +542,18 @@ func (c *Client) ListBundles(target, status string) (*BundleListResponse, error)
 	var res BundleListResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, fmt.Errorf("failed to parse bundle list response: %w", err)
+	}
+
+	// Older servers ignore the target query parameter, so enforce it here as well.
+	if target != "" && target != "all" {
+		filtered := make([]BundleListItem, 0, len(res.Bundles))
+		for _, b := range res.Bundles {
+			if b.Target == target {
+				filtered = append(filtered, b)
+			}
+		}
+		res.Bundles = filtered
+		res.Total = len(filtered)
 	}
 	return &res, nil
 }
@@ -636,7 +659,12 @@ func (c *Client) GenerateBundleAI(prompt, format string) (*BundleGenerateRespons
 }
 
 func (c *Client) DestroyBundle(id string, cascade, purgeStorage bool) (*BundleDestroyResponse, error) {
-	path := fmt.Sprintf("/api/bundles/%s?cascade=%t&purge_storage=%t", url.PathEscape(id), cascade, purgeStorage)
+	return c.DestroyBundleWithOptions(id, BundleDestroyOptions{PurgeStorage: purgeStorage})
+}
+
+func (c *Client) DestroyBundleWithOptions(id string, opts BundleDestroyOptions) (*BundleDestroyResponse, error) {
+	path := fmt.Sprintf("/api/bundles/%s?purge_storage=%t&dry_run=%t&record_only=%t",
+		url.PathEscape(id), opts.PurgeStorage, opts.DryRun, opts.RecordOnly)
 
 	httpReq, err := c.newRequest(http.MethodDelete, path, nil)
 	if err != nil {

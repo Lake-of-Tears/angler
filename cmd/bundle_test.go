@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Lake-of-Tears/angler/internal/client"
 	"github.com/Lake-of-Tears/angler/internal/config"
+	"github.com/Lake-of-Tears/angler/internal/ui"
 )
 
 func TestBundleInit(t *testing.T) {
@@ -599,5 +601,111 @@ func TestHeuristicBundleGeneratorFormats(t *testing.T) {
 	}
 	if err := runLocalValidation("generated.yml", "yaml", []byte(yamlManifest)); err != nil {
 		t.Errorf("expected generated YAML manifest to pass local validation: %v", err)
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Target handling and destroy safety flags (angler#56)
+// -----------------------------------------------------------------------------
+
+func TestRequireDeployTarget(t *testing.T) {
+	if err := requireDeployTarget("dev", false); err != nil {
+		t.Errorf("target given should pass, got %v", err)
+	}
+	if err := requireDeployTarget("", true); err != nil {
+		t.Errorf("dry run without target should only warn, got %v", err)
+	}
+	err := requireDeployTarget("", false)
+	if err == nil || !strings.Contains(err.Error(), "-T") {
+		t.Errorf("real deploy without target must fail mentioning -T, got %v", err)
+	}
+}
+
+func TestManifestCatalogNames(t *testing.T) {
+	yamlManifest := []byte("bundle:\n  name: x\nresources:\n  catalogs:\n    - name: tmd_dev\n    - name: tmd_ref\n")
+	got := manifestCatalogNames("yaml", yamlManifest)
+	if len(got) != 2 || got[0] != "tmd_dev" || got[1] != "tmd_ref" {
+		t.Errorf("unexpected catalogs: %v", got)
+	}
+	if got := manifestCatalogNames("yaml", []byte("not: [valid")); got != nil {
+		t.Errorf("unparseable manifest should return nil, got %v", got)
+	}
+}
+
+func TestListBundlesHonorsTargetEvenIfServerIgnoresIt(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulates a server that ignores ?target= and returns every record.
+		_ = json.NewEncoder(w).Encode(client.BundleListResponse{
+			Bundles: []client.BundleListItem{
+				{ID: "1", BundleName: "b", Target: "dev"},
+				{ID: "2", BundleName: "b", Target: "prod"},
+			},
+			Total: 2,
+		})
+	}))
+	defer server.Close()
+	c := client.NewClient(config.Context{Endpoint: server.URL, Token: "t"})
+
+	res, err := c.ListBundles("prod", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 1 || res.Bundles[0].Target != "prod" {
+		t.Errorf("expected only prod, got %+v", res)
+	}
+
+	all, _ := c.ListBundles("", "")
+	if all.Total != 2 {
+		t.Errorf("no target should list everything, got %d", all.Total)
+	}
+}
+
+func TestDestroyBundleWithOptionsSendsFlags(t *testing.T) {
+	var gotQuery map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		gotQuery = map[string]string{
+			"dry_run":       q.Get("dry_run"),
+			"record_only":   q.Get("record_only"),
+			"purge_storage": q.Get("purge_storage"),
+		}
+		_ = json.NewEncoder(w).Encode(client.BundleDestroyResponse{
+			Status:        "active",
+			DryRun:        true,
+			SkippedShared: map[string][]string{"tables": {"t1", "t2"}},
+			Message:       "Dry run",
+		})
+	}))
+	defer server.Close()
+	c := client.NewClient(config.Context{Endpoint: server.URL, Token: "t"})
+
+	res, err := c.DestroyBundleWithOptions("abc", client.BundleDestroyOptions{DryRun: true, RecordOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotQuery["dry_run"] != "true" || gotQuery["record_only"] != "true" || gotQuery["purge_storage"] != "false" {
+		t.Errorf("unexpected query flags: %v", gotQuery)
+	}
+	if !res.DryRun || len(res.SkippedShared["tables"]) != 2 {
+		t.Errorf("unexpected response: %+v", res)
+	}
+}
+
+func TestRenderDestroyPlanFlagsSharedResources(t *testing.T) {
+	var buf bytes.Buffer
+	orig := ui.OutWriter
+	ui.OutWriter = &buf
+	defer func() { ui.OutWriter = orig }()
+
+	renderDestroyPlan(&client.BundleDestroyResponse{
+		DryRun:          true,
+		PurgedResources: map[string][]string{"dashboards": {"d1"}},
+		SkippedShared:   map[string][]string{"tables": {"t1"}, "pipelines": {"dag_a"}},
+	})
+	out := buf.String()
+	for _, want := range []string{"Would delete", "dashboards: d1", "Shared with another active record", "tables: t1", "pipelines: dag_a"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
 	}
 }

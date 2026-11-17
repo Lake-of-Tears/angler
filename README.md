@@ -529,7 +529,7 @@ angler bundle validate --target dev
 angler bundle deploy --target prod --dry-run
 
 # Deploy bundle assets, Python scripts (scripts/, python/, src/), SQL, tables, and Airflow DAGs
-angler bundle deploy --target dev
+angler bundle deploy --target dev   # --target is required for a real deploy
 
 # Inspect deployed bundle metadata, resource inventory, and live state drift report
 angler bundle get my-analytics --target dev
@@ -540,9 +540,12 @@ angler bundle run orders_etl --target dev --conf '{"batch_date":"2026-11-10"}' -
 
 # List active deployed bundles
 angler bundle ls
+angler bundle ls --target prod   # only one target
 
 # Teardown and unprovision bundle resources
 angler bundle destroy --target dev --purge-storage -y
+angler bundle destroy --target default --dry-run        # list what would be deleted; shared resources are flagged and kept
+angler bundle destroy --target default --record-only -y # remove only the record, keep all resources
 ```
 
 ---

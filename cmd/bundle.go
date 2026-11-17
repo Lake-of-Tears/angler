@@ -27,6 +27,7 @@ var (
 	bundleLocalFlag    bool
 	bundleDryRunFlag   bool
 	bundlePurgeStorage bool
+	bundleRecordOnly   bool
 	bundleIDFlag       string
 	bundleNoDriftFlag  bool
 	bundleManifestFlag bool
@@ -873,10 +874,17 @@ var bundleDeployCmd = &cobra.Command{
 	Long: `Deploys catalogs, schemas, DuckDB managed tables, vector indices, Python virtualenv Airflow DAGs,
 webhook triggers, and Lakeset semantic datasets to the target environment.
 
+A target (-T) is required for a real deploy: DAG names, task files and tables are shared by all
+targets of a bundle, so deploying without one would create a stray "default" record.
+
 Examples:
   angler bundle deploy -T dev
   angler bundle deploy -T prod --dry-run`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := requireDeployTarget(bundleTargetFlag, bundleDryRunFlag); err != nil {
+			return err
+		}
+
 		filePath, format, err := findManifestFile(bundleFileFlag)
 		if err != nil {
 			return err
@@ -912,6 +920,9 @@ Examples:
 				ui.PrintWarning("DRY RUN: Deployment simulation completed")
 				fmt.Fprintf(ui.OutWriter, "  Bundle:  %s\n", res.BundleName)
 				fmt.Fprintf(ui.OutWriter, "  Target:  %s\n", res.Target)
+				if cats := manifestCatalogNames(format, rawBytes); len(cats) > 0 {
+					fmt.Fprintf(ui.OutWriter, "  Catalogs: %s\n", strings.Join(cats, ", "))
+				}
 				fmt.Fprintf(ui.OutWriter, "  Status:  %s\n", res.Status)
 				if res.Message != "" {
 					fmt.Fprintf(ui.OutWriter, "  Message: %s\n", res.Message)
@@ -1224,6 +1235,9 @@ Examples:
 
 		var deployRes *client.BundleDeployResponse
 		if bundleDeployFlag {
+			if err := requireDeployTarget(bundleTargetFlag, bundleDryRunFlag); err != nil {
+				return err
+			}
 			dep, err := c.DeployBundle(&client.BundleDeployRequest{
 				ManifestContent: genRes.Manifest,
 				ManifestFormat:  format,
@@ -1481,18 +1495,48 @@ var bundleDestroyCmd = &cobra.Command{
 	Long: `Permanently deletes provisioned tables, pipelines, and dashboards managed by the bundle.
 Core medallion schemas (bronze, silver, gold) remain protected.
 
+Resources that another active record of the same bundle also references (for example the DAG and
+tables of a live target) are never deleted; they are reported as shared and kept.
+
+Use --dry-run to list what would be deleted or kept, and --record-only to remove only the
+bundle record while keeping every provisioned resource (e.g. to clear a stale record).
+
 Examples:
   angler bundle destroy -T dev -y
-  angler bundle destroy -T dev --purge-storage -y`,
+  angler bundle destroy -T dev --purge-storage -y
+  angler bundle destroy -T default --dry-run
+  angler bundle destroy -T default --record-only -y`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if bundleRecordOnly && bundlePurgeStorage {
+			return fmt.Errorf("--record-only cannot be combined with --purge-storage")
+		}
+
 		c := getClient()
 		bundleID, err := resolveBundleID(c, bundleIDFlag, bundleTargetFlag)
 		if err != nil {
 			return err
 		}
 
+		if bundleDryRunFlag {
+			res, err := c.DestroyBundleWithOptions(bundleID, client.BundleDestroyOptions{
+				PurgeStorage: bundlePurgeStorage,
+				DryRun:       true,
+				RecordOnly:   bundleRecordOnly,
+			})
+			if err != nil {
+				return err
+			}
+			return ui.RenderOutput(res, func() {
+				ui.PrintWarning("DRY RUN: nothing was changed")
+				renderDestroyPlan(res)
+			})
+		}
+
 		if !assumeYes && !ui.IsNonInteractive() {
 			fmt.Fprintf(ui.OutWriter, "⚠️  Are you sure you want to destroy bundle %s in target '%s'?\n", bundleID, bundleTargetFlag)
+			if bundleRecordOnly {
+				fmt.Fprintln(ui.OutWriter, "   Record-only: the record is removed and all resources are kept.")
+			}
 			if bundlePurgeStorage {
 				fmt.Fprintln(ui.OutWriter, "   Storage purge is ENABLED: Raw Parquet data and vector embeddings will be permanently removed.")
 			}
@@ -1505,7 +1549,10 @@ Examples:
 			}
 		}
 
-		res, err := c.DestroyBundle(bundleID, true, bundlePurgeStorage)
+		res, err := c.DestroyBundleWithOptions(bundleID, client.BundleDestroyOptions{
+			PurgeStorage: bundlePurgeStorage,
+			RecordOnly:   bundleRecordOnly,
+		})
 		if err != nil {
 			return err
 		}
@@ -1515,10 +1562,15 @@ Examples:
 			if effectiveID == "" {
 				effectiveID = res.ID
 			}
-			ui.PrintSuccess("Bundle '%s' destroyed successfully.", effectiveID)
+			if bundleRecordOnly {
+				ui.PrintSuccess("Bundle record '%s' removed; resources kept.", effectiveID)
+			} else {
+				ui.PrintSuccess("Bundle '%s' destroyed successfully.", effectiveID)
+			}
 			if bundlePurgeStorage {
 				fmt.Fprintln(ui.OutWriter, "  Storage artifacts purged.")
 			}
+			renderDestroyPlan(res)
 		})
 	},
 }
@@ -1531,6 +1583,11 @@ var bundleListCmd = &cobra.Command{
 	Use:     "ls",
 	Aliases: []string{"list"},
 	Short:   "List deployed Lake Asset Bundles in the active workspace",
+	Long: `Lists deployed bundles in the active workspace. Use -T to show only one target.
+
+Examples:
+  angler bundle ls
+  angler bundle ls -T prod`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := getClient()
 		res, err := c.ListBundles(bundleTargetFlag, "")
@@ -1684,6 +1741,75 @@ func looksLikeUUID(s string) bool {
 	return true
 }
 
+// requireDeployTarget refuses a real deploy without -T. A dry run is allowed but warns, since the
+// server would otherwise fall back to the "default" target.
+func requireDeployTarget(target string, dryRun bool) error {
+	if target != "" {
+		return nil
+	}
+	if dryRun {
+		ui.PrintWarning("No -T target given: the server will use target 'default'.")
+		return nil
+	}
+	return fmt.Errorf("-T/--target is required for deploy (e.g. -T dev); omitting it would create a stray 'default' record")
+}
+
+// manifestCatalogNames returns the catalog names declared in a manifest, or nil if it cannot be parsed.
+func manifestCatalogNames(format string, raw []byte) []string {
+	parsed, err := unmarshalManifestBytes(format, raw)
+	if err != nil {
+		return nil
+	}
+	resources, _ := parsed["resources"].(map[string]interface{})
+	var names []string
+	switch cats := resources["catalogs"].(type) {
+	case []interface{}:
+		for _, c := range cats {
+			if m, ok := c.(map[string]interface{}); ok && m["name"] != nil {
+				names = append(names, fmt.Sprintf("%v", m["name"]))
+			}
+		}
+	case map[string]interface{}:
+		for name := range cats {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+	}
+	return names
+}
+
+// renderDestroyPlan prints purged and shared-and-kept resources for a destroy response.
+func renderDestroyPlan(res *client.BundleDestroyResponse) {
+	section := func(title string, m map[string][]string) {
+		kinds := make([]string, 0, len(m))
+		for k, v := range m {
+			if len(v) > 0 {
+				kinds = append(kinds, k)
+			}
+		}
+		if len(kinds) == 0 {
+			return
+		}
+		sort.Strings(kinds)
+		fmt.Fprintf(ui.OutWriter, "  %s:\n", title)
+		for _, k := range kinds {
+			for _, id := range m[k] {
+				fmt.Fprintf(ui.OutWriter, "    • %s: %s\n", k, id)
+			}
+		}
+	}
+	if res.DryRun {
+		section("Would delete", res.PurgedResources)
+		section("Shared with another active record (kept)", res.SkippedShared)
+	} else {
+		section("Deleted", res.PurgedResources)
+		section("Shared with another active record (kept)", res.SkippedShared)
+	}
+	if res.Message != "" {
+		fmt.Fprintf(ui.OutWriter, "  %s\n", res.Message)
+	}
+}
+
 func resolveBundleIDOrName(c *client.Client, idOrName, target string) (string, error) {
 	if idOrName != "" {
 		if looksLikeUUID(idOrName) {
@@ -1834,6 +1960,8 @@ func init() {
 
 	// destroy flags
 	bundleDestroyCmd.Flags().StringVar(&bundleIDFlag, "bundle-id", "", "UUID of the deployed bundle")
+	bundleDestroyCmd.Flags().BoolVar(&bundleDryRunFlag, "dry-run", false, "List what would be deleted or kept (including shared resources) without changing anything")
+	bundleDestroyCmd.Flags().BoolVar(&bundleRecordOnly, "record-only", false, "Remove only the bundle record and keep all provisioned resources")
 	bundleDestroyCmd.Flags().BoolVar(&bundlePurgeStorage, "purge-storage", false, "Also permanently purge raw Parquet files and vector embeddings in object storage")
 
 	// Add subcommands

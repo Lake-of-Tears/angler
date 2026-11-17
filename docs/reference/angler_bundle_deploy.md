@@ -7,6 +7,9 @@ Deploy Lake Asset Bundle resources and pipelines to the active lakehouse
 Deploys catalogs, schemas, DuckDB managed tables, vector indices, Python virtualenv Airflow DAGs,
 webhook triggers, and Lakeset semantic datasets to the target environment.
 
+A target (-T) is required for a real deploy: DAG names, task files and tables are shared by all
+targets of a bundle, so deploying without one would create a stray "default" record.
+
 Examples:
   angler bundle deploy -T dev
   angler bundle deploy -T prod --dry-run

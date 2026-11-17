@@ -2,6 +2,14 @@
 
 List deployed Lake Asset Bundles in the active workspace
 
+### Synopsis
+
+Lists deployed bundles in the active workspace. Use -T to show only one target.
+
+Examples:
+  angler bundle ls
+  angler bundle ls -T prod
+
 ```
 angler bundle ls [flags]
 ```
