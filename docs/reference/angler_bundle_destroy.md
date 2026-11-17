@@ -7,9 +7,17 @@ Tear down and unprovision bundle resources in the target workspace
 Permanently deletes provisioned tables, pipelines, and dashboards managed by the bundle.
 Core medallion schemas (bronze, silver, gold) remain protected.
 
+Resources that another active record of the same bundle also references (for example the DAG and
+tables of a live target) are never deleted; they are reported as shared and kept.
+
+Use --dry-run to list what would be deleted or kept, and --record-only to remove only the
+bundle record while keeping every provisioned resource (e.g. to clear a stale record).
+
 Examples:
   angler bundle destroy -T dev -y
   angler bundle destroy -T dev --purge-storage -y
+  angler bundle destroy -T default --dry-run
+  angler bundle destroy -T default --record-only -y
 
 ```
 angler bundle destroy [flags]
@@ -19,8 +27,10 @@ angler bundle destroy [flags]
 
 ```
       --bundle-id string   UUID of the deployed bundle
+      --dry-run            List what would be deleted or kept (including shared resources) without changing anything
   -h, --help               help for destroy
       --purge-storage      Also permanently purge raw Parquet files and vector embeddings in object storage
+      --record-only        Remove only the bundle record and keep all provisioned resources
 ```
 
 ### Options inherited from parent commands
