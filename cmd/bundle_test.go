@@ -668,25 +668,27 @@ func TestDestroyBundleWithOptionsSendsFlags(t *testing.T) {
 			"dry_run":       q.Get("dry_run"),
 			"record_only":   q.Get("record_only"),
 			"purge_storage": q.Get("purge_storage"),
+			"keep_catalogs": q.Get("keep_catalogs"),
 		}
 		_ = json.NewEncoder(w).Encode(client.BundleDestroyResponse{
-			Status:        "active",
-			DryRun:        true,
-			SkippedShared: map[string][]string{"tables": {"t1", "t2"}},
-			Message:       "Dry run",
+			Status:              "active",
+			DryRun:              true,
+			SkippedShared:       map[string][]string{"tables": {"t1", "t2"}},
+			SkippedDependencies: map[string][]string{"tables": {"t3"}},
+			Message:             "Dry run",
 		})
 	}))
 	defer server.Close()
 	c := client.NewClient(config.Context{Endpoint: server.URL, Token: "t"})
 
-	res, err := c.DestroyBundleWithOptions("abc", client.BundleDestroyOptions{DryRun: true, RecordOnly: true})
+	res, err := c.DestroyBundleWithOptions("abc", client.BundleDestroyOptions{DryRun: true, RecordOnly: true, KeepCatalogs: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotQuery["dry_run"] != "true" || gotQuery["record_only"] != "true" || gotQuery["purge_storage"] != "false" {
+	if gotQuery["dry_run"] != "true" || gotQuery["record_only"] != "true" || gotQuery["purge_storage"] != "false" || gotQuery["keep_catalogs"] != "true" {
 		t.Errorf("unexpected query flags: %v", gotQuery)
 	}
-	if !res.DryRun || len(res.SkippedShared["tables"]) != 2 {
+	if !res.DryRun || len(res.SkippedShared["tables"]) != 2 || len(res.SkippedDependencies["tables"]) != 1 {
 		t.Errorf("unexpected response: %+v", res)
 	}
 }

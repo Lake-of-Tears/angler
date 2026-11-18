@@ -442,8 +442,10 @@ type BundleDestroyResponse struct {
 	Status          string              `json:"status"`
 	PurgedResources map[string][]string `json:"purged_resources,omitempty"`
 	SkippedShared   map[string][]string `json:"skipped_shared,omitempty"`
-	DryRun          bool                `json:"dry_run,omitempty"`
-	Message         string              `json:"message"`
+	// SkippedDependencies maps a kept table ID to the pipelines that still reference it.
+	SkippedDependencies map[string][]string `json:"skipped_dependencies,omitempty"`
+	DryRun              bool                `json:"dry_run,omitempty"`
+	Message             string              `json:"message"`
 }
 
 // BundleDestroyOptions controls how a bundle record is destroyed.
@@ -453,6 +455,8 @@ type BundleDestroyOptions struct {
 	DryRun bool
 	// RecordOnly removes only the bundle record and keeps every provisioned resource.
 	RecordOnly bool
+	// KeepCatalogs keeps catalogs and schemas the bundle created even when they end up empty.
+	KeepCatalogs bool
 }
 
 func (c *Client) ValidateBundle(req *BundleValidateRequest) (*BundleValidationResponse, error) {
@@ -663,8 +667,8 @@ func (c *Client) DestroyBundle(id string, cascade, purgeStorage bool) (*BundleDe
 }
 
 func (c *Client) DestroyBundleWithOptions(id string, opts BundleDestroyOptions) (*BundleDestroyResponse, error) {
-	path := fmt.Sprintf("/api/bundles/%s?purge_storage=%t&dry_run=%t&record_only=%t",
-		url.PathEscape(id), opts.PurgeStorage, opts.DryRun, opts.RecordOnly)
+	path := fmt.Sprintf("/api/bundles/%s?purge_storage=%t&dry_run=%t&record_only=%t&keep_catalogs=%t",
+		url.PathEscape(id), opts.PurgeStorage, opts.DryRun, opts.RecordOnly, opts.KeepCatalogs)
 
 	httpReq, err := c.newRequest(http.MethodDelete, path, nil)
 	if err != nil {
