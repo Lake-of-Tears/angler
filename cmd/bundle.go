@@ -28,6 +28,7 @@ var (
 	bundleDryRunFlag   bool
 	bundlePurgeStorage bool
 	bundleRecordOnly   bool
+	bundleKeepCatalogs bool
 	bundleIDFlag       string
 	bundleNoDriftFlag  bool
 	bundleManifestFlag bool
@@ -1492,8 +1493,12 @@ resources:
 var bundleDestroyCmd = &cobra.Command{
 	Use:   "destroy",
 	Short: "Tear down and unprovision bundle resources in the target workspace",
-	Long: `Permanently deletes provisioned tables, pipelines, and dashboards managed by the bundle.
-Core medallion schemas (bronze, silver, gold) remain protected.
+	Long: `Deletes the tables, pipelines, and dashboards managed by the bundle. Tables are moved to
+Trash and can be restored (UNDROP) until the Trash retention period ends; a table that another
+pipeline still references is kept. Catalogs and schemas the bundle created itself are removed
+once empty (soft delete, recoverable); catalogs and schemas that already existed are never
+removed. Core medallion schemas (bronze, silver, gold) go only with a bundle-created catalog.
+Use --keep-catalogs to keep every catalog and schema.
 
 Resources that another active record of the same bundle also references (for example the DAG and
 tables of a live target) are never deleted; they are reported as shared and kept.
@@ -1504,6 +1509,7 @@ bundle record while keeping every provisioned resource (e.g. to clear a stale re
 Examples:
   angler bundle destroy -T dev -y
   angler bundle destroy -T dev --purge-storage -y
+  angler bundle destroy -T dev --keep-catalogs -y
   angler bundle destroy -T default --dry-run
   angler bundle destroy -T default --record-only -y`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -1522,6 +1528,7 @@ Examples:
 				PurgeStorage: bundlePurgeStorage,
 				DryRun:       true,
 				RecordOnly:   bundleRecordOnly,
+				KeepCatalogs: bundleKeepCatalogs,
 			})
 			if err != nil {
 				return err
@@ -1533,6 +1540,16 @@ Examples:
 		}
 
 		if !assumeYes && !ui.IsNonInteractive() {
+			plan, err := c.DestroyBundleWithOptions(bundleID, client.BundleDestroyOptions{
+				PurgeStorage: bundlePurgeStorage,
+				DryRun:       true,
+				RecordOnly:   bundleRecordOnly,
+				KeepCatalogs: bundleKeepCatalogs,
+			})
+			if err != nil {
+				return err
+			}
+			renderDestroyPlan(plan)
 			fmt.Fprintf(ui.OutWriter, "⚠️  Are you sure you want to destroy bundle %s in target '%s'?\n", bundleID, bundleTargetFlag)
 			if bundleRecordOnly {
 				fmt.Fprintln(ui.OutWriter, "   Record-only: the record is removed and all resources are kept.")
@@ -1552,6 +1569,7 @@ Examples:
 		res, err := c.DestroyBundleWithOptions(bundleID, client.BundleDestroyOptions{
 			PurgeStorage: bundlePurgeStorage,
 			RecordOnly:   bundleRecordOnly,
+			KeepCatalogs: bundleKeepCatalogs,
 		})
 		if err != nil {
 			return err
@@ -1799,12 +1817,12 @@ func renderDestroyPlan(res *client.BundleDestroyResponse) {
 		}
 	}
 	if res.DryRun {
-		section("Would delete", res.PurgedResources)
-		section("Shared with another active record (kept)", res.SkippedShared)
+		section("Would delete (tables go to Trash)", res.PurgedResources)
 	} else {
-		section("Deleted", res.PurgedResources)
-		section("Shared with another active record (kept)", res.SkippedShared)
+		section("Deleted (tables moved to Trash)", res.PurgedResources)
 	}
+	section("Shared with another active record (kept)", res.SkippedShared)
+	section("Still referenced by a pipeline (kept)", res.SkippedDependencies)
 	if res.Message != "" {
 		fmt.Fprintf(ui.OutWriter, "  %s\n", res.Message)
 	}
@@ -1962,6 +1980,7 @@ func init() {
 	bundleDestroyCmd.Flags().StringVar(&bundleIDFlag, "bundle-id", "", "UUID of the deployed bundle")
 	bundleDestroyCmd.Flags().BoolVar(&bundleDryRunFlag, "dry-run", false, "List what would be deleted or kept (including shared resources) without changing anything")
 	bundleDestroyCmd.Flags().BoolVar(&bundleRecordOnly, "record-only", false, "Remove only the bundle record and keep all provisioned resources")
+	bundleDestroyCmd.Flags().BoolVar(&bundleKeepCatalogs, "keep-catalogs", false, "Keep catalogs and schemas the bundle created, even when empty")
 	bundleDestroyCmd.Flags().BoolVar(&bundlePurgeStorage, "purge-storage", false, "Also permanently purge raw Parquet files and vector embeddings in object storage")
 
 	// Add subcommands

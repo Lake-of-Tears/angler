@@ -546,6 +546,7 @@ angler bundle ls --target prod   # only one target
 angler bundle destroy --target dev --purge-storage -y
 angler bundle destroy --target default --dry-run        # list what would be deleted; shared resources are flagged and kept
 angler bundle destroy --target default --record-only -y # remove only the record, keep all resources
+angler bundle destroy --target dev --keep-catalogs -y   # trash tables but keep bundle-created catalogs/schemas
 ```
 
 ---
